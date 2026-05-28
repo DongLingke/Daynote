@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Desktop application entry point for MyTodoList.
+"""Desktop application entry point for Daynote.
 
 Launches a native macOS window (WebKit) wrapping the Flask web app.
-Data is stored in ~/Library/Application Support/MyTodoList/.
+Data is stored in ~/Library/Application Support/Daynote/.
 """
 
 import os
 import sys
 import socket
+import sqlite3
 import threading
 import time
 import urllib.request
@@ -18,11 +19,11 @@ os.chdir(BASE)
 sys.path.insert(0, BASE)
 
 # Set data directory to user's Application Support folder (writable)
-DATA_DIR = Path.home() / 'Library' / 'Application Support' / 'MyTodoList'
+DATA_DIR = Path.home() / 'Library' / 'Application Support' / 'Daynote'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-os.environ['MYTODOLIST_DB'] = str(DATA_DIR / 'todolist.db')
-os.environ['MYTODOLIST_UPLOADS'] = str(DATA_DIR / 'wallpapers')
+os.environ['DAYNOTE_DB'] = str(DATA_DIR / 'todolist.db')
+os.environ['DAYNOTE_UPLOADS'] = str(DATA_DIR / 'wallpapers')
 
 # Import the Flask app (this also runs init_db with the custom DB path)
 from app import app as flask_app
@@ -49,6 +50,76 @@ def wait_for_server(url, timeout=15):
         except Exception:
             time.sleep(0.1)
     return False
+
+
+def _read_close_action():
+    """Read the user's preferred window-close behaviour from the settings DB.
+
+    Returns 'minimize' (default) or 'quit'. Read fresh on every close so the
+    choice in 设置 → 其他 takes effect without a restart.
+    """
+    try:
+        conn = sqlite3.connect(os.environ['DAYNOTE_DB'])
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key='close_action'"
+        ).fetchone()
+        conn.close()
+        if row and row[0] in ('minimize', 'quit'):
+            return row[0]
+    except Exception:
+        pass
+    return 'minimize'
+
+
+def _disable_macos_text_substitutions():
+    """Turn off macOS automatic text substitutions on the WKWebView.
+
+    On macOS the WebKit view inherits the system "Capitalize words
+    automatically", smart quotes/dashes, and auto-correct settings. With a
+    Chinese input method these mangle pinyin input (the first roman letter of
+    a line gets force-capitalized, etc). The HTML `autocapitalize="off"`
+    attribute only affects mobile virtual keyboards, so we disable the
+    behaviours directly on the native WKWebView instead.
+
+    Runs in pywebview's post-start callback thread; AppKit mutations are
+    marshalled onto the main thread.
+    """
+    try:
+        from webview.platforms.cocoa import BrowserView
+        from PyObjCTools import AppHelper
+    except Exception:
+        return
+
+    # Each of these may or may not exist depending on the macOS version, so
+    # guard every call with respondsToSelector_.
+    selectors = [
+        ('setAutomaticCapitalizationEnabled:',     'setAutomaticCapitalizationEnabled_'),
+        ('setAutomaticTextReplacementEnabled:',    'setAutomaticTextReplacementEnabled_'),
+        ('setAutomaticSpellingCorrectionEnabled:', 'setAutomaticSpellingCorrectionEnabled_'),
+        ('setAutomaticQuoteSubstitutionEnabled:',  'setAutomaticQuoteSubstitutionEnabled_'),
+        ('setAutomaticDashSubstitutionEnabled:',   'setAutomaticDashSubstitutionEnabled_'),
+        ('setContinuousSpellCheckingEnabled:',     'setContinuousSpellCheckingEnabled_'),
+        ('setGrammarCheckingEnabled:',             'setGrammarCheckingEnabled_'),
+    ]
+
+    def apply(wk):
+        for sel_objc, sel_py in selectors:
+            try:
+                if wk.respondsToSelector_(sel_objc):
+                    getattr(wk, sel_py)(False)
+            except Exception:
+                pass
+
+    # The WKWebView is created during webview.start(); poll briefly for it.
+    for _ in range(50):
+        instances = list(BrowserView.instances.values())
+        if instances:
+            for inst in instances:
+                wk = getattr(inst, 'webview', None)
+                if wk is not None:
+                    AppHelper.callAfter(apply, wk)
+            return
+        time.sleep(0.1)
 
 
 def main():
@@ -79,7 +150,19 @@ def main():
         text_select=True,
         zoomable=True,
     )
-    webview.start(gui='cocoa', private_mode=False, debug=False)
+
+    # Clicking the window's red close button minimizes by default (so the app
+    # keeps running in the Dock); users can switch to "quit" in 设置 → 其他.
+    def on_closing(window):
+        if _read_close_action() == 'quit':
+            return None      # allow the close → app terminates
+        window.minimize()
+        return False         # cancel the close → just minimize
+
+    window.events.closing += on_closing
+
+    webview.start(_disable_macos_text_substitutions, gui='cocoa',
+                  private_mode=False, debug=False)
 
 
 if __name__ == '__main__':

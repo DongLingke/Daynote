@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a macOS .icns app icon for MyTodoList.
+"""Generate a macOS .icns app icon for Daynote.
 
 Creates a blue rounded-square icon with a white checkmark.
 Output: icon.icns (in current directory, or specified path)

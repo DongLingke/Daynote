@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build MyTodoList macOS .app bundle and package it into a DMG.
+"""Build 日迹 (Daynote) macOS .app bundle and package it into a DMG.
 
 Uses PyInstaller to produce a truly self-contained bundle: the Python
 interpreter, Flask + Werkzeug + pywebview + pyobjc, the app source, the
 HTML/CSS/JS assets, and the seed wallpapers all ship inside the .app.
-End users only need to drag MyTodoList.app to /Applications and run it —
+End users only need to drag Daynote.app to /Applications and run it —
 no Python, no pip, no terminal.
 
 Usage:
@@ -27,7 +27,7 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent
 APP_NAME    = "日迹Daynote"
 APP_VERSION = "1.0.0"
-APP_ID      = "com.mytodolist"
+APP_ID      = "com.daynote"
 DMG_NAME    = f"{APP_NAME}.dmg"
 BUILD_DIR   = PROJECT_DIR / "build"
 DIST_DIR    = PROJECT_DIR / "dist"
@@ -56,7 +56,7 @@ def create_icon():
 
 
 def build_app(python_bin):
-    """Run PyInstaller to produce dist/MyTodoList.app."""
+    """Run PyInstaller to produce dist/Daynote.app."""
     print(f"\n🔨 Building {APP_NAME}.app (PyInstaller) ...\n")
 
     # Clean prior output so old artifacts don't sneak into the bundle
@@ -128,9 +128,9 @@ def build_app(python_bin):
     return app_bundle
 
 
-def create_dmg(app_bundle):
+def create_dmg(app_bundle, icon_path):
     """Wrap the .app in a compressed UDZO disk image with a /Applications
-    symlink, so the user can drag-to-install."""
+    symlink and custom Finder window layout."""
     dmg_path = PROJECT_DIR / DMG_NAME
     temp_dmg = BUILD_DIR / "temp.dmg"
     dmg_root = BUILD_DIR / "DMGRoot"
@@ -155,7 +155,10 @@ def create_dmg(app_bundle):
         str(temp_dmg),
     ], check=True, capture_output=True)
 
-    # Step 2: convert to compressed read-only (smaller, faster mount)
+    # Step 2: customize DMG appearance (mount, set icon, configure Finder, unmount)
+    _customize_dmg(temp_dmg, icon_path)
+
+    # Step 3: convert to compressed read-only (smaller, faster mount)
     subprocess.run([
         "hdiutil", "convert", str(temp_dmg),
         "-format", "UDZO", "-imagekey", "zlib-level=9",
@@ -165,6 +168,103 @@ def create_dmg(app_bundle):
     shutil.rmtree(dmg_root)
     temp_dmg.unlink()
     return dmg_path
+
+
+def _customize_dmg(dmg_path, icon_path):
+    """Mount DMG, customize Finder window & set volume icon, then unmount."""
+    import time
+
+    # Mount the DMG (writable)
+    mount_result = subprocess.run(
+        ["hdiutil", "attach", str(dmg_path), "-nobrowse", "-readwrite"],
+        capture_output=True, text=True, check=True
+    )
+
+    # Find the mount point from hdiutil output (last column of last line)
+    mount_point = None
+    for line in reversed(mount_result.stdout.split('\n')):
+        parts = line.split()
+        if parts and os.path.exists(parts[-1]) and f"/{APP_NAME}" in line:
+            mount_point = parts[-1]
+            break
+
+    if not mount_point:
+        mount_point = f"/Volumes/{APP_NAME}"
+
+    if not os.path.exists(mount_point):
+        print(f"Warning: Could not find mount point for {dmg_path}")
+        return
+
+    try:
+        # Configure Finder window (icon setting is optional, skip if read-only)
+        try:
+            _set_dmg_icon(mount_point, icon_path)
+        except OSError as e:
+            print(f"Warning: Could not set icon: {e}")
+
+        _configure_finder_window(APP_NAME)
+
+        time.sleep(1)  # Give Finder a moment to write changes
+    finally:
+        # Unmount the DMG
+        subprocess.run(
+            ["hdiutil", "detach", mount_point],
+            capture_output=True, timeout=10
+        )
+
+
+def _set_dmg_icon(mount_point, icon_path):
+    """Set the DMG volume icon using the app's icon."""
+    if not icon_path.exists():
+        return
+
+    # Copy icon to DMG's .VolumeIcon.icns
+    vol_icon = Path(mount_point) / ".VolumeIcon.icns"
+    shutil.copy(icon_path, vol_icon)
+
+    # Set the volume's custom icon flag
+    subprocess.run(
+        ["SetFile", "-a", "C", mount_point],
+        capture_output=True
+    )
+
+
+def _configure_finder_window(mount_point):
+    """Configure Finder window to show app and Applications folder side-by-side."""
+    apple_script = f'''
+tell application "Finder"
+    tell disk "{APP_NAME}"
+        open
+        delay 0.5
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set the bounds of container window to {{100, 100, 700, 500}}
+        set icon size of icon view options of container window to 128
+        set background picture of icon view options of container window to null
+        set text size of icon view options of container window to 12
+
+        -- Arrange icons
+        set arrangement of icon view options of container window to arranged by name
+
+        -- Position app on left
+        set position of item "{APP_NAME}.app" of container window to {{150, 250}}
+
+        -- Position Applications symlink on right
+        set position of item "Applications" of container window to {{550, 250}}
+
+        close
+        open
+        update
+    end tell
+end tell
+'''
+    subprocess.run(
+        ["osascript", "-e", apple_script],
+        capture_output=True,
+        text=True,
+        encoding='utf-8'
+    )
 
 
 def main():
@@ -182,7 +282,8 @@ def main():
         return
 
     print(f"\n📦 Creating {DMG_NAME} ...")
-    dmg_path = create_dmg(app_bundle)
+    icon_path = PROJECT_DIR / "icon.icns"
+    dmg_path = create_dmg(app_bundle, icon_path)
     shutil.rmtree(BUILD_DIR, ignore_errors=True)
 
     size_mb = dmg_path.stat().st_size / (1024 * 1024)

@@ -45,22 +45,26 @@ const CFG = {
   ],
 };
 
+// IMPORTANT: these must stay in lock-step with the `defaults` dict in app.py
+// (the values a fresh install seeds into the DB). They are the single source
+// of truth for "恢复默认" so reset always lands on the same initial state a
+// new user gets. If you change one side, change the other.
 const DEFAULT_SETTINGS = {
-  theme: 'system',
-  font_size: '14',
-  font_weight: '400',
+  theme: 'light',
+  font_size: '16',
+  font_weight: '500',
   font_family: 'system',
-  card_size: '60',
+  card_size: '80',
   card_opacity: '100',
-  card_blur: '30',
-  card_brightness: '70',
-  card_saturation: '200',
-  card_radius: '26',
-  card_aspect: '150',
+  card_blur: '100',
+  card_brightness: '100',
+  card_saturation: '100',
+  card_radius: '33',
+  card_aspect: '140',
   card_aspect_mobile: '45',
-  card_split: '62',          // desktop: thoughts/editor panel width %
+  card_split: '65',          // desktop: thoughts/editor panel width %
   card_split_mobile: '48',   // mobile:  todos section height %
-  ui_style: 'liquid-glass',
+  ui_style: 'flat',
   color_scheme: 'extract',
   active_wp_desktop_light: '',
   active_wp_desktop_dark: '',
@@ -74,21 +78,22 @@ const DEFAULT_SETTINGS = {
   emoji_todo_1: '🌘',
   show_datetime: 'true',
   show_date: 'true',
-  show_time: 'true',
+  show_time: 'false',
   show_weekday: 'true',
   show_seconds: 'false',
   show_lunar: 'false',
   hour_format: '24',
-  show_priority_emoji: 'true',
-  show_thought_time: 'true',
+  show_priority_emoji: 'false',
+  show_thought_time: 'false',
   show_thought_content: 'true',
   hide_todo_emoji: 'false',
   extracted_accent: '',
   onboarding_done: 'false',
-  cal_days_per_page: '4',
-  cal_item_click_mode: 'popup',
-  card_item_tint: '0',
-  dim_past_thoughts: 'false',
+  cal_days_per_page: '8',
+  cal_item_click_mode: 'expand',
+  card_item_tint: '5',
+  dim_past_thoughts: 'true',
+  close_action: 'minimize',  // desktop app: 'minimize' or 'quit' on window close
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -108,6 +113,8 @@ const state = {
   showCompleted: true,
   isMobile: window.matchMedia('(max-width: 768px)').matches,
   immersive: false, // immersive full-card editor in add view
+  addingThought: false, // main view: thoughts panel is showing its inline add editor
+  addingTodo: false,    // main view: todos panel is showing its inline add row
   inlineEdit: null,   // { kind:'todo'|'thought', id, data:{...} } when a row is being edited in place
   inlineEditor: null, // WYSI editor instance for thought inline edits
 };
@@ -467,7 +474,6 @@ function render() {
           <button class="nav-btn ${state.view==='settings'?'active':''}" data-act="view-settings" title="设置" aria-label="设置">${ICONS.settings}</button>
           <button class="nav-btn ${state.view==='calendar'?'active':''}" data-act="view-calendar" title="日历" aria-label="日历">${ICONS.calendar}</button>
           <button class="nav-btn ${state.view==='main'?'active':''}" data-act="view-main" title="主页" aria-label="主页">${ICONS.home}</button>
-          <button class="nav-btn ${state.view==='add'?'active':''}" data-act="view-add" title="添加" aria-label="添加">${ICONS.plus}</button>
         </div>
       </div>
       <div id="view-container">
@@ -505,14 +511,54 @@ function renderViewBody() {
 function renderMainView() {
   return `
     <div class="main-desktop">
-      <div class="thoughts-panel">${renderThoughtsList(state.thoughts)}</div>
+      <div class="thoughts-panel">
+        ${renderPanelHead('thought', '想法 & 感受')}
+        <div class="panel-scroll">
+          ${state.addingThought ? renderThoughtEditor(false) : ''}
+          ${renderThoughtsList(state.thoughts)}
+        </div>
+      </div>
       <div class="panel-splitter" data-orient="v" data-skey="card_split" title="拖动调整分区比例"></div>
-      <div class="todos-panel">${renderTodosList(state.todos, true)}</div>
+      <div class="todos-panel">
+        ${renderPanelHead('todo', '待办')}
+        <div class="panel-scroll">
+          ${state.addingTodo ? renderTodoAddRow() : ''}
+          ${renderTodosList(state.todos, true)}
+        </div>
+      </div>
     </div>
     <div class="main-mobile">
-      <div class="mobile-todos-section">${renderTodosList(state.todos, false, true)}</div>
+      <div class="mobile-todos-section">
+        ${renderPanelHead('todo', '待办')}
+        <div class="panel-scroll">
+          ${state.addingTodo ? renderTodoAddRow() : ''}
+          ${renderTodosList(state.todos, false, true)}
+        </div>
+      </div>
       <div class="panel-splitter" data-orient="h" data-skey="card_split_mobile" title="拖动调整分区比例"></div>
-      <div class="mobile-thoughts-section">${renderThoughtsList(state.thoughts)}</div>
+      <div class="mobile-thoughts-section">
+        ${renderPanelHead('thought', '想法 & 感受')}
+        <div class="panel-scroll">
+          ${state.addingThought ? renderThoughtEditor(false) : ''}
+          ${renderThoughtsList(state.thoughts)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* Sticky header for a main-view panel: a title plus a "+" button that toggles
+   that column into its own inline add form (✕ to close). */
+function renderPanelHead(kind, title) {
+  const adding = kind === 'thought' ? state.addingThought : state.addingTodo;
+  const act = kind === 'thought' ? 'toggle-add-thought' : 'toggle-add-todo';
+  return `
+    <div class="panel-head">
+      <span class="panel-head-title">${title}</span>
+      <button class="panel-add-btn ${adding ? 'active' : ''}" data-act="${act}"
+              title="${adding ? '收起' : '添加'}" aria-label="${adding ? '收起' : '添加'}">
+        ${adding ? ICONS.close : ICONS.plus}
+      </button>
     </div>
   `;
 }
@@ -671,10 +717,11 @@ function renderTodoItem(t) {
 
 function renderTodoInlineEditor(data) {
   const s = state.settings;
+  const isNew = !data.id;
   return `
-    <div class="todo-item editing inline-edit inline-edit-todo ${data.completed?'completed':''}" data-todo-id="${data.id}">
+    <div class="todo-item editing inline-edit inline-edit-todo ${data.completed?'completed':''}" data-todo-id="${data.id || ''}">
       <input type="text" class="inline-edit-input" value="${utils.esc(data.content)}" placeholder="代办内容…" autocapitalize="off" autocorrect="off" spellcheck="false" />
-      ${data.completed ? `<div class="inline-edit-meta">完成于 ${utils.formatDate(data.completed_at)} ${utils.formatTime(data.completed_at)}</div>` : ''}
+      ${data.completed && data.completed_at ? `<div class="inline-edit-meta">完成于 ${utils.formatDate(data.completed_at)} ${utils.formatTime(data.completed_at)}</div>` : ''}
       <div class="inline-edit-footer">
         <div class="priority-selector">
           ${[4,3,2,1].map(p => `
@@ -682,9 +729,9 @@ function renderTodoInlineEditor(data) {
           `).join('')}
         </div>
         <div class="inline-edit-actions">
-          <button class="danger-btn" data-act="inline-delete">删除</button>
+          ${isNew ? '' : `<button class="danger-btn" data-act="inline-delete">删除</button>`}
           <button class="glass-btn" data-act="inline-cancel">取消</button>
-          <button class="glass-btn primary" data-act="inline-save">保存</button>
+          <button class="glass-btn primary" data-act="inline-save">${isNew ? '添加' : '保存'}</button>
         </div>
       </div>
     </div>
@@ -726,7 +773,7 @@ function renderAddView() {
   `;
 }
 
-function renderThoughtEditor() {
+function renderThoughtEditor(showImmersive = true) {
   const immersiveIcon = state.immersive ? ICONS.compress : ICONS.expand;
   const immersiveTitle = state.immersive ? '退出沉浸编辑' : '沉浸编辑';
   return `
@@ -738,7 +785,7 @@ function renderThoughtEditor() {
           <button class="${state.addType==='feeling'?'active':''}" data-act="set-type" data-type="feeling">${utils.esc(state.settings.emoji_feeling)} 感受</button>
         </div>
         <div style="flex:1"></div>
-        <button class="immersive-btn ${state.immersive?'on':''}" data-act="toggle-immersive" title="${immersiveTitle}" aria-label="${immersiveTitle}">${immersiveIcon}</button>
+        ${showImmersive ? `<button class="immersive-btn ${state.immersive?'on':''}" data-act="toggle-immersive" title="${immersiveTitle}" aria-label="${immersiveTitle}">${immersiveIcon}</button>` : ''}
         <button class="glass-btn primary" data-act="save-thought">添加</button>
       </div>
     </div>
@@ -812,6 +859,8 @@ function renderCalDay(d) {
   const today = new Date();
   const isToday = utils.dateKey(d) === utils.dateKey(today);
   const dayKey = utils.dateKey(d);
+  const pad = n => String(n).padStart(2, '0');
+  const isoDate = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const dayNames = ['周日','周一','周二','周三','周四','周五','周六'];
 
   const dayThoughts = state.thoughts.filter(t => utils.dateKey(t.created_at) === dayKey);
@@ -827,10 +876,11 @@ function renderCalDay(d) {
   ].sort((a, b) => new Date(b._ts) - new Date(a._ts));
 
   return `
-    <div class="calendar-day">
+    <div class="calendar-day" data-date="${isoDate}">
       <div class="cal-day-header ${isToday?'today':''}">
         <div class="cal-day-name">${dayNames[d.getDay()]} ${isToday?'• 今天':''}</div>
         <div class="cal-day-date">${d.getMonth()+1}/${d.getDate()}</div>
+        <button class="cal-day-add" data-act="cal-day-add" data-date="${isoDate}" title="添加已完成待办" aria-label="添加已完成待办">${ICONS.plus}</button>
       </div>
       <div class="cal-day-body">
         ${all.length ? all.map(item => `
@@ -1169,8 +1219,22 @@ function renderTabWallpaper() {
 }
 
 function renderTabReset() {
+  const s = state.settings;
   return `
     <div class="settings-section-title">其他</div>
+    <div class="settings-group-title">窗口</div>
+    <div class="settings-group">
+      <div class="settings-row">
+        <div class="settings-row-label">
+          点击关闭按钮时
+          <div class="settings-row-sub">桌面应用：关闭窗口是最小化还是退出</div>
+        </div>
+        <div class="segment-ctrl">
+          <button class="${(s.close_action||'minimize')==='minimize'?'active':''}" data-act="set" data-k="close_action" data-v="minimize">最小化</button>
+          <button class="${(s.close_action||'minimize')==='quit'?'active':''}" data-act="set" data-k="close_action" data-v="quit">退出</button>
+        </div>
+      </div>
+    </div>
     <div class="settings-group-title">浏览器</div>
     <div class="settings-group">
       <div class="settings-row">
@@ -1270,6 +1334,9 @@ async function saveThought() {
   });
   activeWysiEditor.setValue('');
   state.thoughts = await api.get('/thoughts');
+  // Adding a thought / feeling collapses the inline editor back to the list
+  // (todos, by contrast, keep their add row open so you can add several).
+  state.addingThought = false;
   render();
 }
 
@@ -1679,21 +1746,30 @@ async function extractColorsFromWallpaper(silent) {
 }
 
 async function resetSection(section) {
+  // Each list mirrors exactly the settings shown in that tab, so "恢复默认"
+  // only touches its own tab's controls.
   const sectionKeys = {
-    appearance: ['theme','ui_style','color_scheme'],
+    appearance: ['theme','ui_style','color_scheme',
+                 'font_family','font_size','font_weight',
+                 'card_size','card_opacity','card_blur','card_brightness','card_saturation',
+                 'card_radius','card_item_tint','card_aspect','card_aspect_mobile','card_split','card_split_mobile'],
     wallpaper:  ['active_wp_desktop_light','active_wp_desktop_dark','active_wp_mobile_light','active_wp_mobile_dark'],
-    interface:  ['card_size','card_opacity','card_blur','card_brightness','card_saturation','card_radius','card_item_tint','card_aspect','card_aspect_mobile','card_split','card_split_mobile',
-                 'font_size','font_weight','font_family',
-                 'emoji_thought','emoji_feeling','emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1',
-                 'show_datetime','show_date','show_time','show_weekday','show_seconds','show_lunar','hour_format',
-                 'show_priority_emoji','show_thought_time','show_thought_content','hide_todo_emoji','dim_past_thoughts',
-                 'cal_days_per_page','cal_item_click_mode'],
+    interface:  ['show_date','show_time','show_weekday','show_seconds','show_lunar','hour_format',
+                 'show_datetime','show_thought_time','show_thought_content','show_priority_emoji',
+                 'hide_todo_emoji','dim_past_thoughts','cal_days_per_page','cal_item_click_mode',
+                 'emoji_thought','emoji_feeling','emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1'],
   };
   const keys = sectionKeys[section];
   if (!keys) return;
   const updates = {};
   keys.forEach(k => updates[k] = DEFAULT_SETTINGS[k]);
   Object.assign(state.settings, updates);
+  // Resetting the appearance tab should also drop any extracted-accent
+  // override so the default color scheme shows cleanly.
+  if (section === 'appearance') {
+    document.documentElement.style.removeProperty('--accent');
+    document.documentElement.style.removeProperty('--scheme-accent');
+  }
   await api.put('/settings', updates);
   applySettings();
   render();
@@ -1797,10 +1873,15 @@ function bindGlobalEvents() {
       case 'view-settings': switchView('settings'); break;
       case 'view-calendar': switchView('calendar'); break;
       case 'view-main':     switchView('main');     break;
-      case 'view-add':
-        switchView('add');
-        if (state.view === 'add') {
-          setTimeout(() => document.getElementById('todo-add-input')?.focus(), 100);
+      case 'toggle-add-thought':
+        state.addingThought = !state.addingThought;
+        render();
+        break;
+      case 'toggle-add-todo':
+        state.addingTodo = !state.addingTodo;
+        render();
+        if (state.addingTodo) {
+          setTimeout(() => document.getElementById('todo-add-input')?.focus(), 60);
         }
         break;
       case 'todo-up':    await changePriority(id, +1); break;
@@ -1828,6 +1909,7 @@ function bindGlobalEvents() {
         break;
       case 'save-todo':    await saveTodo();    break;
       case 'save-thought': await saveThought(); break;
+      case 'cal-day-add':  await openCalDayAdd(el.dataset.date); break;
       case 'toggle-immersive':
         state.immersive = !state.immersive;
         render();
@@ -1865,6 +1947,10 @@ function bindGlobalEvents() {
           [`active_wp_${cat}`]: el.dataset.id,
           [`extracted_accent_${cat}`]: '',
         };
+        // Picking a dark/light wallpaper also flips the app into the matching
+        // theme, so what you select is what you immediately see.
+        if (cat.endsWith('_dark'))  updates.theme = 'dark';
+        if (cat.endsWith('_light')) updates.theme = 'light';
         Object.assign(state.settings, updates);
         await api.put('/settings', updates);
         applySettings();
@@ -1999,6 +2085,9 @@ function bindViewEvents() {
         saveThought();
       }
     });
+    // When the thoughts panel just opened its inline add editor, drop the
+    // caret straight in so the user can start typing.
+    if (state.addingThought) setTimeout(() => wysiEl.focus(), 60);
   } else {
     activeWysiEditor = null;
   }
@@ -2125,6 +2214,8 @@ async function switchView(target) {
   }
   // Exit immersive editor whenever the view changes
   if (state.view !== 'add') state.immersive = false;
+  // Leaving the main view collapses any open inline add forms.
+  if (state.view !== 'main') { state.addingThought = false; state.addingTodo = false; }
   render();
 }
 
@@ -2303,7 +2394,30 @@ function setupWysiEditor(el, initialText = '') {
   // interrupt pinyin / kana entry mid-stroke.
   let composing = false;
   el.addEventListener('compositionstart', () => { composing = true; });
-  el.addEventListener('compositionend',   () => { composing = false; reflowCurrentLine(); });
+  el.addEventListener('compositionend',   () => { composing = false; maybeUndoAutoCap(); reflowCurrentLine(); });
+
+  // macOS "Capitalize words automatically" force-uppercases the first letter
+  // of a line even with autocapitalize="off" (the attribute only covers
+  // virtual keyboards). That's a constant nuisance when typing pinyin. We
+  // can't disable the OS behaviour from a web page, so we undo it: if a line
+  // gains a leading uppercase ASCII letter the user did NOT type with Shift /
+  // Caps Lock, lower-case it back. Deliberate capitals are preserved.
+  let _shiftHeld = false;
+  el.addEventListener('keydown', (e) => {
+    if (e.key && e.key.length === 1) {
+      _shiftHeld = e.shiftKey || e.getModifierState('CapsLock');
+    }
+  });
+  function maybeUndoAutoCap() {
+    if (_shiftHeld) return;
+    const line = currentLine();
+    if (!line) return;
+    const text = line.textContent || '';
+    if (!/^[A-Z]/.test(text)) return;
+    const off = getCaretOffset(line);
+    line.textContent = text.charAt(0).toLowerCase() + text.slice(1);
+    if (off != null) setCaretOffset(line, off);
+  }
 
   function reflowCurrentLine() {
     const sel = window.getSelection();
@@ -2323,6 +2437,7 @@ function setupWysiEditor(el, initialText = '') {
 
   el.addEventListener('input', () => {
     if (composing) return;
+    maybeUndoAutoCap();
     reflowCurrentLine();
   });
 
@@ -2965,6 +3080,34 @@ async function openCalEdit(kind, id, mode) {
   initInlineEditDom();
 }
 
+/* Calendar day "+" button → inline-add a brand-new completed todo dated to
+   that day, using the same expand editor as item editing. The item has no id
+   yet; saveInlineEdit() sees `isNew` and POSTs + marks it complete on the
+   chosen date. */
+async function openCalDayAdd(isoDate) {
+  if (state.inlineEdit) { await saveInlineEdit(); }
+  const data = { id: '', content: '', priority: 1, completed: 0 };
+  state.inlineEdit  = { kind: 'todo', id: null, isNew: true, newDate: isoDate, data, mode: 'expand' };
+  state.inlineEditor = null;
+
+  const dayBody = document.querySelector(
+    `.calendar-day[data-date="${CSS.escape(isoDate)}"] .cal-day-body`
+  );
+  if (!dayBody) { state.inlineEdit = null; return; }
+
+  const tmp = document.createElement('template');
+  tmp.innerHTML = renderTodoInlineEditor(data).trim();
+  const ed = tmp.content.firstElementChild;
+  ed.classList.add('cal-inline-edit');
+
+  // Drop the "无记录" placeholder if present, then prepend the editor.
+  const empty = dayBody.querySelector('.empty-state');
+  if (empty) empty.remove();
+  dayBody.prepend(ed);
+
+  initInlineEditDom();
+}
+
 function hideEditModal() {
   const modal = document.getElementById('edit-modal');
   if (!modal) return;
@@ -3091,18 +3234,26 @@ function initInlineEditDom() {
 
 async function saveInlineEdit() {
   if (!state.inlineEdit) return;
-  const { kind, id, data } = state.inlineEdit;
+  const { kind, id, data, isNew, newDate } = state.inlineEdit;
   if (kind === 'todo') {
     const inp = document.querySelector('.inline-edit-input');
     const newContent = (inp?.value || '').trim();
     // Empty content → silently cancel (no alert; user just exited an empty edit)
     if (!newContent) { closeInlineEdit(); return; }
-    // No change → just close, skip the network round-trip
-    if (newContent === data.content && (data._origPriority === data.priority || data.priority === undefined)) {
-      closeInlineEdit(); return;
+    if (isNew) {
+      // New calendar entry: create the todo, then mark it completed on the
+      // chosen day (noon, so it sorts naturally and matches that date).
+      const created = await api.post('/todos', { content: newContent, priority: data.priority, emoji: '' });
+      await api.put(`/todos/${created.id}`, { completed: 1, completed_at: `${newDate} 12:00:00` });
+      state.todos = await api.get('/todos');
+    } else {
+      // No change → just close, skip the network round-trip
+      if (newContent === data.content && (data._origPriority === data.priority || data.priority === undefined)) {
+        closeInlineEdit(); return;
+      }
+      await api.put(`/todos/${id}`, { content: newContent, priority: data.priority });
+      state.todos = await api.get('/todos');
     }
-    await api.put(`/todos/${id}`, { content: newContent, priority: data.priority });
-    state.todos = await api.get('/todos');
   } else {
     if (!state.inlineEditor || state.inlineEditor.isEmpty()) { closeInlineEdit(); return; }
     let title = state.inlineEditor.getTitle();

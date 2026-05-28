@@ -7,13 +7,13 @@ from flask import Flask, jsonify, request, render_template, send_from_directory,
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB for wallpaper uploads
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB for wallpaper uploads (Daynote)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.environ.get('MYTODOLIST_DB') or os.path.join(BASE, 'todolist.db')
-UPLOAD_FOLDER = os.environ.get('MYTODOLIST_UPLOADS') or os.path.join(BASE, 'static', 'wallpapers')
+DB_PATH = os.environ.get('DAYNOTE_DB') or os.path.join(BASE, 'todolist.db')
+UPLOAD_FOLDER = os.environ.get('DAYNOTE_UPLOADS') or os.path.join(BASE, 'static', 'wallpapers')
 ALLOWED = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -90,7 +90,7 @@ def init_db():
         'font_size': '16',
         'font_weight': '500',
         'font_family': 'system',
-        'card_size': '65',
+        'card_size': '80',
         'card_opacity': '100',
         'card_blur': '100',
         'card_brightness': '100',
@@ -129,6 +129,7 @@ def init_db():
         'cal_item_click_mode': 'expand',
         'card_item_tint': '5',
         'dim_past_thoughts': 'true',
+        'close_action': 'minimize',
     }
     for k, v in defaults.items():
         c.execute('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)', (k, v))
@@ -241,6 +242,8 @@ def _seed_tutorial(conn):
     c = conn.cursor()
     now = datetime.now().replace(microsecond=0)
 
+    # Logging is now disabled; remove seed.log after testing if it exists
+
     def days_ago(d):
         return (now - timedelta(days=d)).strftime('%Y-%m-%d %H:%M:%S')
 
@@ -271,14 +274,29 @@ def _seed_tutorial(conn):
     # ships new bundled wallpapers) backfills them into an existing DB
     # without wiping the user's own uploads.
     wp_dir = os.path.join(app.static_folder, 'wallpapers')
+
+    # Fallback paths in case static_folder is resolved incorrectly in bundle
+    wp_fallbacks = [
+        wp_dir,  # normal: BASE/static/wallpapers
+        os.path.join(BASE, 'static', 'wallpapers'),  # explicit
+        os.path.join(os.path.dirname(BASE), 'static', 'wallpapers'),  # one level up
+    ]
+
+
+    def find_wallpaper_file(filename):
+        for base_path in wp_fallbacks:
+            full = os.path.join(base_path, filename)
+            if os.path.exists(full):
+                return full
+        return None
+
     existing = {row['filename'] for row in
                 c.execute('SELECT filename FROM wallpapers').fetchall()}
     inserted_any = False
     for filename, category, name in TUTORIAL_WALLPAPERS:
         if filename in existing:
             continue
-        full = os.path.join(wp_dir, filename)
-        if not os.path.exists(full):
+        if not find_wallpaper_file(filename):
             continue
         c.execute(
             'INSERT INTO wallpapers (filename, category, name) VALUES (?, ?, ?)',
@@ -286,25 +304,21 @@ def _seed_tutorial(conn):
         )
         inserted_any = True
 
-    # Default active picks — only set when the key is missing so we don't
-    # overwrite a user who already picked something else. Done on first
-    # seed (table was empty) only, to avoid resetting an upgraded user's
-    # current active wallpaper. The TUTORIAL_ACTIVE_WP IDs assume a
-    # fresh-install ordering (1..N) which only holds on first seed.
-    if not existing and inserted_any:
-        # Re-resolve to actual rowids in case prior wallpapers had been
-        # deleted (shouldn't happen here — table was empty — but defensive).
+    # Default active picks — set regardless (simpler & always works)
+    # Store as integers mapped to actual wallpaper IDs
+    if inserted_any:
         fname_to_id = {row['filename']: row['id'] for row in
                        c.execute('SELECT id, filename FROM wallpapers').fetchall()}
-        # TUTORIAL_ACTIVE_WP stores the 1-based index into TUTORIAL_WALLPAPERS;
-        # translate that into the actual freshly-inserted filename's rowid.
+
+        # Map TUTORIAL_ACTIVE_WP indices to actual wallpaper IDs
         for k, idx_str in TUTORIAL_ACTIVE_WP.items():
             try:
                 fname = TUTORIAL_WALLPAPERS[int(idx_str) - 1][0]
                 wid = fname_to_id.get(fname)
                 if wid is not None:
+                    # Always update, in case this is an upgrade
                     c.execute(
-                        'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
+                        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
                         (k, str(wid)),
                     )
             except (ValueError, IndexError):
