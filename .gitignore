@@ -1,0 +1,10 @@
+__pycache__/
+.pyc
+.DS_Store
+.venv/
+.npm-cache/
+.claude/
+*.dmg
+dist/
+build/
+*.spec

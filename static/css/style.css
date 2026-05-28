@@ -1,0 +1,2678 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CSS Custom Properties
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  --radius-card: 26px;
+  --radius-item: 12px;
+  --radius-btn: 10px;
+  --radius-sm: 8px;
+
+  --glass-blur: 48px;
+  --glass-sat: 1.8;
+  --glass-brightness: 1.04;
+  --glass-bg: rgba(255,255,255,0.10);
+  --glass-bg-hover: rgba(255,255,255,0.18);
+  --glass-border: rgba(255,255,255,0.30);
+  --glass-inner: rgba(255,255,255,0.45);
+  --glass-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.50),
+    inset 0 -1px 0 rgba(0,0,0,0.04),
+    0 24px 64px rgba(0,0,0,0.14),
+    0 8px 24px rgba(0,0,0,0.09);
+
+  --item-glass: rgba(255,255,255,0.08);
+  --item-glass-hover: rgba(255,255,255,0.18);
+  --item-border: rgba(255,255,255,0.20);
+
+  --text-primary: rgba(0,0,0,0.88);
+  --text-secondary: rgba(0,0,0,0.52);
+  --text-tertiary: rgba(0,0,0,0.30);
+  --text-link: #007AFF;
+
+  --divider: rgba(0,0,0,0.08);
+  --scrollbar: rgba(0,0,0,0.15);
+
+  --p4-color: #FF3B30;
+  --p3-color: #FF9500;
+  --p2-color: #34C759;
+  --p1-color: #8E8E93;
+
+  --accent: #007AFF;
+  --accent-hover: #0066DD;
+
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', sans-serif;
+  --font-size: 14px;
+  --font-weight: 400;
+
+  --card-size: 60;
+  --card-opacity: 85;
+
+  /* Scheme: default */
+  --scheme-accent: #007AFF;
+  --scheme-tag-bg: rgba(0,122,255,0.12);
+}
+
+/* ── Dark Theme ─────────────────────────────────────────────────── */
+.theme-dark {
+  --glass-bg: rgba(20,20,30,0.30);
+  --glass-bg-hover: rgba(40,40,55,0.45);
+  --glass-border: rgba(255,255,255,0.12);
+  --glass-inner: rgba(255,255,255,0.28);
+  --glass-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.20),
+    0 24px 64px rgba(0,0,0,0.50),
+    0 8px 24px rgba(0,0,0,0.35);
+
+  --item-glass: rgba(255,255,255,0.05);
+  --item-glass-hover: rgba(255,255,255,0.10);
+  --item-border: rgba(255,255,255,0.10);
+
+  --text-primary: rgba(255,255,255,0.92);
+  --text-secondary: rgba(255,255,255,0.55);
+  --text-tertiary: rgba(255,255,255,0.28);
+  --text-link: #64B5FF;
+
+  --divider: rgba(255,255,255,0.08);
+  --scrollbar: rgba(255,255,255,0.18);
+
+  --scheme-tag-bg: rgba(100,181,255,0.15);
+}
+
+/* ── Color Schemes ──────────────────────────────────────────────── */
+.scheme-morandi {
+  --accent: #8B7D6B;
+  --accent-hover: #7A6C5C;
+  --scheme-accent: #8B7D6B;
+  --p4-color: #B08080;
+  --p3-color: #C4A882;
+  --p2-color: #8BA888;
+  --p1-color: #A0A0A8;
+  --scheme-tag-bg: rgba(139,125,107,0.12);
+}
+.scheme-sakura {
+  --accent: #E8829A;
+  --accent-hover: #D46882;
+  --scheme-accent: #E8829A;
+  --p4-color: #E85C7A;
+  --p3-color: #F0A4B4;
+  --p2-color: #C4A4C8;
+  --p1-color: #A8A8C0;
+  --scheme-tag-bg: rgba(232,130,154,0.12);
+}
+.scheme-ocean {
+  --accent: #0A84FF;
+  --accent-hover: #0070EE;
+  --scheme-accent: #0A84FF;
+  --p4-color: #0A84FF;
+  --p3-color: #32ADE6;
+  --p2-color: #34C4C8;
+  --p1-color: #636366;
+  --scheme-tag-bg: rgba(10,132,255,0.12);
+}
+.scheme-forest {
+  --accent: #30A84E;
+  --accent-hover: #228B3A;
+  --scheme-accent: #30A84E;
+  --p4-color: #30A84E;
+  --p3-color: #85C880;
+  --p2-color: #A4C880;
+  --p1-color: #888888;
+  --scheme-tag-bg: rgba(48,168,78,0.12);
+}
+.scheme-sunset {
+  --accent: #FF6B35;
+  --accent-hover: #E85A25;
+  --scheme-accent: #FF6B35;
+  --p4-color: #FF3B30;
+  --p3-color: #FF6B35;
+  --p2-color: #FFCC02;
+  --p1-color: #8E8E93;
+  --scheme-tag-bg: rgba(255,107,53,0.12);
+}
+.scheme-lavender {
+  --accent: #9B7BC9;  --accent-hover: #8665B0;  --scheme-accent: #9B7BC9;
+  --p4-color: #C04C8E;  --p3-color: #9B7BC9;  --p2-color: #6F89D6;  --p1-color: #9090A0;
+  --scheme-tag-bg: rgba(155,123,201,0.14);
+}
+.scheme-mint {
+  --accent: #3DC4A0;  --accent-hover: #2BA382;  --scheme-accent: #3DC4A0;
+  --p4-color: #E47878;  --p3-color: #F0B860;  --p2-color: #3DC4A0;  --p1-color: #8FA8A0;
+  --scheme-tag-bg: rgba(61,196,160,0.14);
+}
+.scheme-rose {
+  --accent: #D24A6B;  --accent-hover: #B73B5A;  --scheme-accent: #D24A6B;
+  --p4-color: #D24A6B;  --p3-color: #E6A0B0;  --p2-color: #B89AC5;  --p1-color: #A8959D;
+  --scheme-tag-bg: rgba(210,74,107,0.14);
+}
+.scheme-amber {
+  --accent: #C77F2D;  --accent-hover: #A86A20;  --scheme-accent: #C77F2D;
+  --p4-color: #B83C2A;  --p3-color: #C77F2D;  --p2-color: #B5A33E;  --p1-color: #95897A;
+  --scheme-tag-bg: rgba(199,127,45,0.14);
+}
+.scheme-graphite {
+  --accent: #5C5C66;  --accent-hover: #46464F;  --scheme-accent: #5C5C66;
+  --p4-color: #7A4040;  --p3-color: #7A5A40;  --p2-color: #406050;  --p1-color: #808088;
+  --scheme-tag-bg: rgba(92,92,102,0.14);
+}
+.scheme-sky {
+  --accent: #56A0C7;  --accent-hover: #418ABC;  --scheme-accent: #56A0C7;
+  --p4-color: #DC6B6B;  --p3-color: #E6A062;  --p2-color: #6FB5A0;  --p1-color: #90A5B5;
+  --scheme-tag-bg: rgba(86,160,199,0.14);
+}
+.scheme-cherry {
+  --accent: #C0392B;  --accent-hover: #A52A1F;  --scheme-accent: #C0392B;
+  --p4-color: #C0392B;  --p3-color: #D87F4A;  --p2-color: #B0987E;  --p1-color: #9C8C8A;
+  --scheme-tag-bg: rgba(192,57,43,0.14);
+}
+
+.scheme-chip.flash { animation: schemeFlash 0.6s ease; }
+@keyframes schemeFlash {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); box-shadow: 0 0 0 3px var(--accent); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reset & Base
+   ═══════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  font-weight: var(--font-weight);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   App Layout
+   ═══════════════════════════════════════════════════════════════════ */
+#app {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+#wallpaper {
+  position: absolute; inset: 0;
+  background: #ffffff;
+  background-size: cover;
+  background-position: center;
+  transition: background 0.6s ease;
+}
+.theme-dark #wallpaper { background: #0a0a0f; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Card Wrapper (sizing)
+   ═══════════════════════════════════════════════════════════════════ */
+#card-wrapper {
+  position: relative;
+  z-index: 10;
+  width: calc(var(--card-size) * 1vw);
+  aspect-ratio: var(--card-aspect, 1.5);
+  max-height: 88vh;
+  max-width: calc(88vh * var(--card-aspect, 1.5));
+  border-radius: var(--radius-card);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transition: width 0.4s ease, max-height 0.4s ease;
+}
+
+/* Fullscreen mode — card_size at 100% lets the card fill the viewport
+   edge-to-edge. We drop the aspect-ratio constraint, max-* caps, and
+   the radius (which would otherwise show wallpaper at the corners). */
+body.fullscreen-card #card-wrapper {
+  width: 100vw;
+  aspect-ratio: auto;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+}
+body.fullscreen-card #card-wrapper .glass-layer {
+  border-radius: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Glass Card Background Layers
+   ═══════════════════════════════════════════════════════════════════ */
+.glass-layer {
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-brightness));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-brightness));
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  opacity: var(--card-opacity);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* The generic ::before specular highlight (the painted "shine" on
+   every glass card) was reading as fake — real glass doesn't have a
+   light-source gradient unless there's an actual light to refract. So
+   we make it inert by default; each UI style decides whether to use
+   it. Liquid-glass and frosted below leave it empty. */
+.glass-layer::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ── Liquid Glass ─────────────────────────────────────────────────
+   Strip everything that's "painted on": no rim glow, no top highlight,
+   no outer drop shadow, no gradient. The card is defined ONLY by the
+   discontinuity in the backdrop-filter — the wallpaper goes from sharp
+   to blurred at the card's edge, and that step is the entire visual.
+   This is how a real translucent panel actually reads to the eye.
+   ────────────────────────────────────────────────────────────────── */
+.style-liquid-glass .glass-layer {
+  backdrop-filter:
+    blur(var(--glass-blur-lg))
+    saturate(var(--glass-sat-lg))
+    brightness(var(--glass-brightness));
+  -webkit-backdrop-filter:
+    blur(var(--glass-blur-lg))
+    saturate(var(--glass-sat-lg))
+    brightness(var(--glass-brightness));
+  background: var(--glass-bg);
+  /* A hairline edge — just enough to confirm "this is an object", not
+     enough to read as a painted highlight. 0.5px is a real subpixel
+     on retina; on non-retina it falls back to a faint 1px. */
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+.style-liquid-glass .glass-layer::before { display: none; }
+.theme-dark .style-liquid-glass .glass-layer {
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+/* ── Frosted Glass ─────────────────────────────────────────────────
+   Diffuse, opaque-ish. Heavier blur + less saturation + a slightly
+   more opaque base tint. Same minimalism: no decorations, the card is
+   the blur step itself.
+   ────────────────────────────────────────────────────────────────── */
+/* (Frosted UI style removed by user request.) */
+
+/* ── Flat (Notion-inspired) ─────────────────────────────────────────
+   - Clean opaque background (no blur)
+   - Notion's signature warm-gray text color
+   - Very subtle dividers & hover states
+   - Minimal shadow, sharper corners
+   ─────────────────────────────────────────────────────────────────── */
+.style-flat {
+  /* --radius-card now follows the user's slider (set on :root by JS) */
+  --radius-item: 4px;
+  --radius-btn: 4px;
+  --radius-sm: 3px;
+
+  /* Notion-light palette */
+  --notion-bg: #ffffff;
+  --notion-text: rgb(55, 53, 47);
+  --notion-text-secondary: rgba(55, 53, 47, 0.65);
+  --notion-text-tertiary: rgba(55, 53, 47, 0.4);
+  --notion-divider: rgba(55, 53, 47, 0.09);
+  --notion-hover: rgba(55, 53, 47, 0.055);
+  --notion-active: rgba(55, 53, 47, 0.08);
+  --notion-shadow:
+    0 0 0 1px rgba(15, 15, 15, 0.05),
+    0 2px 4px rgba(15, 15, 15, 0.05),
+    0 8px 24px rgba(15, 15, 15, 0.12);
+}
+
+.style-flat.theme-dark,
+.theme-dark .style-flat {
+  --notion-bg: rgb(25, 25, 25);
+  --notion-text: rgba(255, 255, 255, 0.81);
+  --notion-text-secondary: rgba(255, 255, 255, 0.55);
+  --notion-text-tertiary: rgba(255, 255, 255, 0.3);
+  --notion-divider: rgba(255, 255, 255, 0.08);
+  --notion-hover: rgba(255, 255, 255, 0.05);
+  --notion-active: rgba(255, 255, 255, 0.08);
+  --notion-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 16px 32px rgba(0, 0, 0, 0.3);
+}
+
+.style-flat .glass-layer {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--notion-bg);
+  border: none;
+  opacity: var(--card-opacity);
+  box-shadow: var(--notion-shadow);
+  animation: none !important;
+}
+.style-flat .glass-layer::before,
+.style-flat .glass-layer::after { display: none; }
+
+/* Text colors override the default glass palette */
+.style-flat {
+  --text-primary: var(--notion-text);
+  --text-secondary: var(--notion-text-secondary);
+  --text-tertiary: var(--notion-text-tertiary);
+  --divider: var(--notion-divider);
+  --scrollbar: var(--notion-text-tertiary);
+
+  --item-glass: transparent;
+  --item-glass-hover: var(--notion-hover);
+  --item-border: transparent;
+}
+
+/* Items: no rounded background by default, just a hover state */
+.style-flat .todo-item,
+.style-flat .thought-item,
+.style-flat .cal-item {
+  background: transparent;
+  border: none;
+  margin-bottom: 1px;
+  padding: 6px 8px;
+  border-radius: var(--radius-item);
+}
+.style-flat .todo-item:hover,
+.style-flat .thought-item:hover,
+.style-flat .cal-item:hover {
+  background: var(--notion-hover);
+  border: none;
+}
+
+/* Icon buttons: subtle hover, no glass */
+.style-flat .icon-btn {
+  background: transparent;
+  color: var(--notion-text-secondary);
+  backdrop-filter: none;
+}
+.style-flat .icon-btn:hover {
+  background: var(--notion-hover);
+  color: var(--notion-text);
+}
+.style-flat .icon-btn.active {
+  background: var(--notion-active);
+  color: var(--notion-text);
+}
+
+/* Date label / section headers: more refined */
+.style-flat .date-label,
+.style-flat .priority-label,
+.style-flat .settings-group-title,
+.style-flat .completed-section-header,
+.style-flat .section-divider {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--notion-text-tertiary);
+}
+.style-flat .date-label::after,
+.style-flat .priority-label::after { background: transparent; }
+
+/* Setting groups */
+.style-flat .settings-group {
+  background: transparent;
+  border: 1px solid var(--notion-divider);
+  border-radius: var(--radius-item);
+}
+.style-flat .settings-sidebar {
+  border-right-color: var(--notion-divider);
+}
+.style-flat .settings-nav-item:hover { background: var(--notion-hover); }
+.style-flat .settings-nav-item.active {
+  background: var(--notion-active);
+  color: var(--notion-text);
+}
+
+/* Glass buttons → flat */
+.style-flat .glass-btn {
+  background: transparent;
+  border: 1px solid var(--notion-divider);
+  backdrop-filter: none;
+  color: var(--notion-text);
+}
+.style-flat .glass-btn:hover { background: var(--notion-hover); }
+.style-flat .glass-btn.primary {
+  background: var(--notion-text);
+  color: var(--notion-bg);
+  border-color: transparent;
+}
+.style-flat .glass-btn.primary:hover { opacity: 0.85; }
+
+/* Segment / chip */
+.style-flat .segment-ctrl {
+  background: var(--notion-hover);
+  border-radius: var(--radius-btn);
+}
+.style-flat .segment-ctrl button.active {
+  background: var(--notion-bg);
+  color: var(--notion-text);
+  box-shadow: 0 1px 2px rgba(15,15,15,0.1);
+}
+.style-flat .chip { border-color: var(--notion-divider); }
+.style-flat .chip.on { background: var(--notion-text); color: var(--notion-bg); border-color: transparent; }
+
+/* Wallpaper / scheme chips */
+.style-flat .scheme-chip { background: transparent; border-color: var(--notion-divider); }
+.style-flat .scheme-chip:hover { background: var(--notion-hover); }
+.style-flat .scheme-chip.active {
+  background: var(--notion-hover);
+  border-color: var(--accent);
+  color: var(--notion-text);
+}
+
+/* Toggle */
+.style-flat .toggle-switch { background: rgba(120,120,128,0.16); }
+.style-flat.theme-dark .toggle-switch,
+.theme-dark .style-flat .toggle-switch { background: rgba(255,255,255,0.16); }
+
+/* Editor */
+.style-flat .wysi-editor,
+.style-flat .modal-textarea,
+.style-flat .modal-input,
+.style-flat .todo-add-row,
+.style-flat .todo-add-input { background: transparent; border-color: var(--notion-divider); }
+
+/* Top header datetime */
+.style-flat .card-header { border-bottom-color: var(--notion-divider); }
+.style-flat .header-datetime { color: var(--notion-text-secondary); }
+
+/* Drag placeholder */
+.style-flat .todo-drag-placeholder {
+  background: var(--notion-hover);
+  border-color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UI Style — Paper
+   Warm cream surface, ink-on-paper text. The card no longer "sits on"
+   the wallpaper as glass; instead it's an opaque page floating with a
+   soft shadow. Wallpaper is still visible around it.
+   ═══════════════════════════════════════════════════════════════════ */
+.style-paper {
+  --paper-bg:          #f5efe1;
+  --paper-bg-warm:     #ede5d3;
+  --paper-text:        #2a2620;
+  --paper-text-soft:   rgba(42, 38, 32, 0.66);
+  --paper-text-faint:  rgba(42, 38, 32, 0.40);
+  --paper-divider:     rgba(80, 60, 40, 0.16);
+  --paper-hover:       rgba(80, 60, 40, 0.07);
+  --paper-active:      rgba(80, 60, 40, 0.12);
+  --paper-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.10),
+    0 16px 44px rgba(0, 0, 0, 0.18);
+}
+.style-paper.theme-dark,
+.theme-dark .style-paper {
+  --paper-bg:          #221d18;
+  --paper-bg-warm:     #2a241e;
+  --paper-text:        #ede5d3;
+  --paper-text-soft:   rgba(237, 229, 211, 0.66);
+  --paper-text-faint:  rgba(237, 229, 211, 0.36);
+  --paper-divider:     rgba(237, 229, 211, 0.12);
+  --paper-hover:       rgba(237, 229, 211, 0.06);
+  --paper-active:      rgba(237, 229, 211, 0.10);
+  --paper-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.5),
+    0 16px 44px rgba(0, 0, 0, 0.6);
+}
+.style-paper .glass-layer {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--paper-bg);
+  border: 1px solid var(--paper-divider);
+  opacity: var(--card-opacity);
+  box-shadow: var(--paper-shadow);
+  animation: none !important;
+}
+.style-paper .glass-layer::before,
+.style-paper .glass-layer::after { display: none; }
+.style-paper {
+  --text-primary: var(--paper-text);
+  --text-secondary: var(--paper-text-soft);
+  --text-tertiary: var(--paper-text-faint);
+  --divider: var(--paper-divider);
+  --scrollbar: var(--paper-text-faint);
+  --item-glass: transparent;
+  --item-glass-hover: var(--paper-hover);
+  --item-border: transparent;
+}
+.style-paper .todo-item,
+.style-paper .thought-item,
+.style-paper .cal-item {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  margin-bottom: 2px;
+  padding: 7px 9px;
+}
+.style-paper .todo-item:hover,
+.style-paper .thought-item:hover,
+.style-paper .cal-item:hover {
+  background: var(--paper-hover);
+}
+.style-paper .icon-btn {
+  background: transparent;
+  color: var(--paper-text-soft);
+  backdrop-filter: none;
+}
+.style-paper .icon-btn:hover { background: var(--paper-hover); color: var(--paper-text); }
+.style-paper .icon-btn.active { background: var(--paper-active); color: var(--paper-text); }
+.style-paper .date-label,
+.style-paper .priority-label,
+.style-paper .settings-group-title,
+.style-paper .completed-section-header {
+  color: var(--paper-text-faint);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.style-paper .toggle-switch { background: rgba(80,60,40,0.18); }
+.style-paper .glass-btn {
+  background: transparent;
+  border: 1px solid var(--paper-divider);
+  backdrop-filter: none;
+  color: var(--paper-text);
+}
+.style-paper .glass-btn:hover { background: var(--paper-hover); }
+.style-paper .glass-btn.primary {
+  background: var(--paper-text);
+  color: var(--paper-bg);
+  border-color: transparent;
+}
+.style-paper .segment-ctrl { background: var(--paper-hover); }
+.style-paper .segment-ctrl button.active {
+  background: var(--paper-bg-warm);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.style-paper .scheme-chip { background: transparent; border-color: var(--paper-divider); }
+.style-paper .scheme-chip.active { border-color: var(--accent); background: var(--paper-hover); }
+.style-paper .wysi-editor,
+.style-paper .modal-textarea,
+.style-paper .modal-input,
+.style-paper .todo-add-row,
+.style-paper .todo-add-input { background: transparent; border-color: var(--paper-divider); }
+.style-paper .card-header { border-bottom-color: var(--paper-divider); }
+.style-paper .header-datetime { color: var(--paper-text-soft); }
+.style-paper .todo-drag-placeholder { background: var(--paper-hover); border-color: var(--accent); }
+.style-paper .settings-sidebar { border-right-color: var(--paper-divider); }
+.style-paper .settings-nav-item:hover { background: var(--paper-hover); }
+.style-paper .settings-nav-item.active { background: var(--paper-active); color: var(--paper-text); }
+.style-paper .settings-group {
+  background: transparent;
+  border: 1px solid var(--paper-divider);
+  border-radius: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UI Style — Terminal
+   Monospace, near-black background, phosphor green text. The whole UI
+   reads like a TTY: dim borders, no rounded corners, no glass. A very
+   subtle scanline overlay (SVG repeating gradient) provides CRT vibe.
+   ═══════════════════════════════════════════════════════════════════ */
+.style-terminal {
+  --term-bg:        #0a0d0a;
+  --term-bg-soft:   #111611;
+  --term-fg:        #4ade80;
+  --term-fg-dim:    rgba(74, 222, 128, 0.65);
+  --term-fg-faint:  rgba(74, 222, 128, 0.32);
+  --term-accent:    #facc15;
+  --term-divider:   rgba(74, 222, 128, 0.18);
+  --term-hover:     rgba(74, 222, 128, 0.08);
+  --term-active:    rgba(74, 222, 128, 0.15);
+  font-family: "JetBrains Mono", "Fira Code", "SF Mono", Menlo, Consolas, monospace !important;
+}
+/* Apply mono to all text-bearing elements (Chinese fallback is OK,
+   the system monospace stack keeps CJK readable). */
+.style-terminal,
+.style-terminal * {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+.style-terminal .glass-layer {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--term-bg);
+  border: 1px solid var(--term-divider);
+  opacity: var(--card-opacity);
+  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.08), 0 12px 36px rgba(0,0,0,0.6);
+  border-radius: 4px !important;
+  animation: none !important;
+}
+.style-terminal .glass-layer::before { display: none; }
+/* CRT scanlines — pure CSS repeating gradient, very subtle. */
+.style-terminal .glass-layer::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.18) 3px,
+    rgba(0, 0, 0, 0) 4px
+  );
+  mix-blend-mode: multiply;
+  opacity: 0.45;
+  display: block !important;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.18) 3px,
+    rgba(0, 0, 0, 0) 4px
+  );
+  filter: none;
+}
+.style-terminal {
+  --text-primary: var(--term-fg);
+  --text-secondary: var(--term-fg-dim);
+  --text-tertiary: var(--term-fg-faint);
+  --divider: var(--term-divider);
+  --scrollbar: var(--term-fg-faint);
+  --item-glass: transparent;
+  --item-glass-hover: var(--term-hover);
+  --item-border: transparent;
+  --accent: var(--term-accent);
+}
+.style-terminal .todo-item,
+.style-terminal .thought-item,
+.style-terminal .cal-item {
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 2px;
+  margin-bottom: 2px;
+  padding: 5px 8px;
+}
+.style-terminal .todo-item:hover,
+.style-terminal .thought-item:hover,
+.style-terminal .cal-item:hover {
+  background: var(--term-hover);
+  border-color: var(--term-divider);
+}
+.style-terminal .icon-btn {
+  background: transparent;
+  color: var(--term-fg-dim);
+  backdrop-filter: none;
+  border-radius: 2px;
+}
+.style-terminal .icon-btn:hover { background: var(--term-hover); color: var(--term-fg); }
+.style-terminal .icon-btn.active { background: var(--term-active); color: var(--term-fg); }
+.style-terminal .glass-btn {
+  background: transparent;
+  border: 1px solid var(--term-divider);
+  backdrop-filter: none;
+  color: var(--term-fg);
+  border-radius: 2px;
+}
+.style-terminal .glass-btn:hover { background: var(--term-hover); border-color: var(--term-fg); }
+.style-terminal .glass-btn.primary {
+  background: var(--term-fg);
+  color: var(--term-bg);
+  border-color: var(--term-fg);
+}
+.style-terminal .glass-btn.primary:hover { background: var(--term-accent); border-color: var(--term-accent); }
+.style-terminal .segment-ctrl { background: var(--term-hover); border-radius: 2px; }
+.style-terminal .segment-ctrl button.active {
+  background: var(--term-fg);
+  color: var(--term-bg);
+  border-radius: 2px;
+}
+.style-terminal .toggle-switch { background: rgba(74, 222, 128, 0.18); }
+.style-terminal .date-label,
+.style-terminal .priority-label,
+.style-terminal .settings-group-title,
+.style-terminal .completed-section-header {
+  color: var(--term-fg-dim);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.style-terminal .wysi-editor,
+.style-terminal .modal-textarea,
+.style-terminal .modal-input,
+.style-terminal .todo-add-row,
+.style-terminal .todo-add-input {
+  background: transparent;
+  border-color: var(--term-divider);
+  caret-color: var(--term-accent) !important;
+}
+.style-terminal .card-header { border-bottom-color: var(--term-divider); }
+.style-terminal .header-datetime { color: var(--term-fg-dim); }
+.style-terminal .todo-drag-placeholder { background: var(--term-hover); border-color: var(--term-accent); }
+.style-terminal .settings-sidebar { border-right-color: var(--term-divider); }
+.style-terminal .settings-group {
+  background: transparent;
+  border: 1px solid var(--term-divider);
+  border-radius: 2px;
+}
+.style-terminal .settings-nav-item:hover { background: var(--term-hover); }
+.style-terminal .settings-nav-item.active { background: var(--term-active); color: var(--term-fg); }
+.style-terminal .scheme-chip { background: transparent; border-color: var(--term-divider); border-radius: 2px; }
+.style-terminal .scheme-chip.active { border-color: var(--term-accent); }
+/* Terminal looks the same in light mode — phosphor monitors don't have one */
+.style-terminal.theme-dark,
+.theme-dark .style-terminal { /* nothing to override */ }
+
+/* (UI Style — Monochrome removed by user request.) */
+/* (Text Legibility leg-* removed by user request — replaced by 卡片→局部底纹 slider.) */
+
+.card-content {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Card Header
+   ═══════════════════════════════════════════════════════════════════ */
+.card-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px 10px 16px;
+  gap: 6px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.header-datetime {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.header-title {
+  flex: 1;
+  font-size: 0.93rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  text-align: center;
+  padding: 0 8px;
+}
+
+.icon-btn {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: var(--item-glass);
+  color: var(--text-primary);
+  font-size: 1.07rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.18s, transform 0.15s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.icon-btn:hover { background: var(--item-glass-hover); transform: scale(1.08); }
+.icon-btn:active { transform: scale(0.94); }
+.icon-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ── Header nav: segmented pill group of 4 view-switch buttons ── */
+.header-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--item-glass);
+  border: 1px solid var(--item-border);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    0 2px 8px rgba(0,0,0,0.06);
+}
+.theme-dark .header-nav {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 2px 10px rgba(0,0,0,0.32);
+}
+
+.nav-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  transition: background 0.18s ease, color 0.18s ease,
+              border-color 0.18s ease, transform 0.12s ease,
+              box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+.nav-btn svg { display: block; pointer-events: none; }
+.nav-btn:hover {
+  background: var(--item-glass-hover);
+  color: var(--text-primary);
+}
+.nav-btn:active { transform: scale(0.9); }
+.nav-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.25);
+}
+.nav-btn.active:hover { background: var(--accent-hover); color: #fff; }
+
+/* Flat style: stripped-down, no glass — square-ish segmented control */
+.style-flat .header-nav {
+  background: transparent;
+  border-color: var(--notion-divider);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+.style-flat .nav-btn:hover { background: var(--notion-hover); }
+.style-flat .nav-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Main View Layout
+   ═══════════════════════════════════════════════════════════════════ */
+/* Desktop: two panels side by side (default — flex-direction:row) */
+.main-desktop {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.thoughts-panel {
+  flex: 0 0 var(--panel-split-w, 62.5%);
+  overflow-y: auto;
+  padding: 14px 14px 14px 16px;
+}
+
+.todos-panel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 14px 16px 14px 14px;
+}
+
+/* Mobile: stacked vertical layout — todos on top, thoughts/feelings below */
+.main-mobile { display: none; }
+
+@media (max-width: 768px) {
+  .main-desktop { display: none; }
+  .main-mobile {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .mobile-todos-section {
+    flex: 0 0 var(--panel-split-h, 48%);
+    overflow-y: auto;
+    padding: 12px 14px 8px;
+  }
+  .mobile-thoughts-section {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px 14px 12px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Panel splitter — draggable handle between thoughts/todos panels
+   ═══════════════════════════════════════════════════════════════════ */
+.panel-splitter {
+  position: relative;
+  flex: 0 0 1px;
+  background: var(--divider);
+  transition: background 0.15s;
+  z-index: 5;
+}
+/* Vertical splitter (between left/right panels) — narrow strip, ew-resize */
+.panel-splitter[data-orient="v"] {
+  width: 1px;
+  cursor: ew-resize;
+}
+.panel-splitter[data-orient="v"]::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -4px; right: -4px;   /* 9px hit-area, centered on the 1px line */
+}
+/* Horizontal splitter (between top/bottom panels) — narrow strip, ns-resize */
+.panel-splitter[data-orient="h"] {
+  height: 1px;
+  cursor: ns-resize;
+}
+.panel-splitter[data-orient="h"]::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: -4px; bottom: -4px;    /* 9px hit-area, centered on the 1px line */
+}
+.panel-splitter:hover,
+.panel-splitter.dragging {
+  background: var(--scheme-accent, var(--accent, #4B6FD9));
+}
+/* While actively dragging — hide caret-style cursor on the whole document */
+body.splitter-active,
+body.splitter-active * {
+  cursor: ew-resize !important;
+  user-select: none !important;
+}
+body.splitter-active.splitter-h,
+body.splitter-active.splitter-h * {
+  cursor: ns-resize !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Scrollbars
+   ═══════════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Date Group Header
+   ═══════════════════════════════════════════════════════════════════ */
+.date-group { margin-bottom: 14px; }
+.date-group:last-child { margin-bottom: 0; }
+
+.date-label {
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 4px 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.date-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--divider);
+}
+
+/* Priority group header */
+.priority-group { margin-bottom: 12px; }
+.priority-label {
+  font-size: 0.79rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 4px 8px;
+  display: flex; align-items: center; gap: 6px;
+  opacity: 0.7;
+}
+.priority-label::after {
+  content: ''; flex: 1; height: 1px; background: var(--divider);
+}
+.priority-label.p4 { color: var(--p4-color); }
+.priority-label.p3 { color: var(--p3-color); }
+.priority-label.p2 { color: var(--p2-color); }
+.priority-label.p1 { color: var(--p1-color); }
+
+.section-divider {
+  font-size: 0.79rem; font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 12px 4px 8px;
+  display: flex; align-items: center; gap: 6px;
+  border-top: 1px solid var(--divider);
+  margin-top: 8px;
+}
+
+/* Non-today thought groups (left panel) are visually de-emphasized so
+   "today" stands out. Applied via .date-group.is-past — todos use the
+   same .date-group class but aren't inside .thoughts-panel /
+   .mobile-thoughts-section, so this scopes the dim to the thoughts side
+   only. Hovering a past item restores full opacity so it stays
+   readable when you're about to interact with it. */
+/* Gated behind `body.dim-past` so users can opt in/out from
+   设置 → 界面设置 → 显示元素. Default OFF — past records render
+   at full opacity unless the user enables the toggle. */
+body.dim-past .thoughts-panel .date-group.is-past,
+body.dim-past .mobile-thoughts-section .date-group.is-past,
+body.dim-past .add-thoughts-panel .date-group.is-past {
+  opacity: 0.55;
+  transition: opacity 0.18s;
+}
+body.dim-past .thoughts-panel .date-group.is-past:hover,
+body.dim-past .mobile-thoughts-section .date-group.is-past:hover,
+body.dim-past .add-thoughts-panel .date-group.is-past:hover {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Thought / Feeling Item
+   ═══════════════════════════════════════════════════════════════════ */
+.thought-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-item);
+  margin-bottom: 6px;
+  background: var(--item-glass);
+  border: 1px solid transparent;
+  transition: background 0.18s, border-color 0.18s;
+  cursor: default;
+  position: relative;
+}
+.thought-item:hover {
+  background: var(--item-glass-hover);
+  border-color: var(--item-border);
+}
+
+.item-emoji {
+  font-size: 1.14rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.thought-body { flex: 1; min-width: 0; }
+
+.thought-title {
+  font-size: 0.93rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thought-content {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Markdown inside thought content */
+.thought-content strong { font-weight: 600; color: var(--text-primary); }
+.thought-content em { font-style: italic; }
+.thought-content code {
+  background: var(--scheme-tag-bg);
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 0.79rem;
+  font-family: 'SF Mono', 'Menlo', monospace;
+}
+
+.thought-meta {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.item-delete-btn {
+  position: absolute; top: 6px; right: 6px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,59,48,0.15);
+  color: #FF3B30;
+  font-size: 0.86rem;
+  cursor: pointer;
+  display: none; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.thought-item:hover .item-delete-btn { display: flex; }
+.item-delete-btn:hover { background: rgba(255,59,48,0.28); }
+
+/* Per-item tint ("局部底纹") — when the user moves the 卡片 → 局部底纹
+   slider above 0, JS publishes an rgba on :root as --item-tint-extra
+   (dark theme uses black, light theme uses white). The rule below
+   layers that colour ON TOP of whatever each item's natural background
+   is — using a CSS background image so the original `var(--item-glass)`
+   stays visible underneath instead of getting overridden. Only applies
+   to glass UI styles where item background is translucent; paper /
+   terminal / flat use solid item rows and would clash. */
+body.style-liquid-glass .todo-item:not(.completed):not(.editing),
+body.style-liquid-glass .thought-item,
+body.style-liquid-glass .cal-item {
+  background-image: linear-gradient(var(--item-tint-extra, transparent), var(--item-tint-extra, transparent));
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Todo Item
+   ═══════════════════════════════════════════════════════════════════ */
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-item);
+  margin-bottom: 5px;
+  background: var(--item-glass);
+  border: 1px solid transparent;
+  transition: background 0.18s, border-color 0.18s, transform 0.2s, box-shadow 0.2s;
+  cursor: grab;
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+}
+.todo-item.completed,
+.todo-item.editing { cursor: default; }
+.todo-item:active { cursor: grabbing; }
+.todo-item:hover {
+  background: var(--item-glass-hover);
+  border-color: var(--item-border);
+}
+.todo-item.completed { opacity: 0.55; }
+.todo-item.completed .todo-text { text-decoration: line-through; color: var(--text-tertiary); }
+
+.todo-text {
+  flex: 1;
+  font-size: 0.93rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* Action buttons shown on hover (desktop) */
+.todo-actions {
+  display: none;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 2px;
+  border-radius: calc(var(--radius-item) - 2px);
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.todo-item:hover .todo-actions { display: flex; }
+.theme-dark .todo-actions { background: rgba(255,255,255,0.03); }
+
+/* On touch devices the hover-revealed actions are hidden — use left-swipe instead.
+   Also allow the item to overflow so the swipe panel can sit off-screen until revealed. */
+@media (hover: none) and (pointer: coarse) {
+  .todo-actions { display: none !important; }
+  .todo-item { overflow: visible; }
+}
+
+.todo-action-btn {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: var(--item-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.18s ease, color 0.18s ease,
+              border-color 0.18s ease, transform 0.12s ease,
+              box-shadow 0.18s ease;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.todo-action-btn svg { display: block; pointer-events: none; }
+.todo-action-btn:hover {
+  background: var(--item-glass-hover);
+  color: var(--text-primary);
+  border-color: var(--item-border);
+}
+.todo-action-btn:active { transform: scale(0.92); }
+
+.todo-action-btn.up-btn:hover {
+  background: rgba(0,122,255,0.16);
+  color: var(--accent);
+  border-color: rgba(0,122,255,0.32);
+  box-shadow: 0 2px 8px rgba(0,122,255,0.18);
+}
+.todo-action-btn.down-btn:hover {
+  background: rgba(142,142,147,0.18);
+  color: var(--text-primary);
+  border-color: rgba(142,142,147,0.36);
+}
+.todo-action-btn.complete-btn:hover {
+  background: rgba(52,199,89,0.18);
+  color: var(--p2-color);
+  border-color: rgba(52,199,89,0.38);
+  box-shadow: 0 2px 8px rgba(52,199,89,0.22);
+}
+.todo-action-btn.delete-btn:hover {
+  background: rgba(255,59,48,0.16);
+  color: var(--p4-color);
+  border-color: rgba(255,59,48,0.34);
+}
+
+/* Long-press drag-and-drop */
+.todo-item.dragging {
+  cursor: grabbing;
+  box-shadow:
+    0 20px 56px rgba(0,0,0,0.45),
+    0 0 0 2px var(--accent),
+    inset 0 1px 0 rgba(255,255,255,0.5);
+  background: var(--item-glass-hover);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  transform: scale(1.04) rotate(-0.5deg);
+  border-color: var(--accent);
+  opacity: 0.98;
+  /* No transition during drag so position follows cursor instantly */
+}
+.todo-drag-placeholder {
+  border: 2px dashed var(--accent);
+  background: var(--scheme-tag-bg);
+  border-radius: var(--radius-item);
+  opacity: 0.5;
+  margin-bottom: 5px;
+}
+body.drag-active { cursor: grabbing !important; }
+body.drag-active * { cursor: grabbing !important; }
+body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
+
+/* Mobile swipe reveal — only rendered on touch devices; hidden on desktop
+   to avoid a tiny residual "bump" near the right edge of items. */
+.todo-swipe-actions { display: none; }
+
+@media (hover: none) and (pointer: coarse) {
+  .todo-swipe-actions {
+    position: absolute;
+    right: 0; top: 50%;
+    transform: translate(100%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    border-radius: calc(var(--radius-item) - 2px);
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .theme-dark .todo-swipe-actions { background: rgba(255,255,255,0.03); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Add View
+   ═══════════════════════════════════════════════════════════════════ */
+.add-desktop {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.add-editor-panel {
+  flex: 0 0 var(--panel-split-w, 62.5%);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 14px 14px 16px;
+  gap: 10px;
+}
+
+.add-todos-panel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 14px 16px 14px 14px;
+}
+
+.add-mobile { display: none; }
+
+@media (max-width: 768px) {
+  .add-desktop { display: none; }
+  .add-mobile {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .add-mobile-top {
+    flex: 0 0 var(--panel-split-h, 48%);
+    overflow-y: auto;
+    padding: 12px 14px 8px;
+  }
+  .add-mobile-bottom {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 14px 12px;
+    gap: 8px;
+  }
+}
+
+/* Immersive editor: the whole card becomes the thought editor */
+.add-immersive {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 16px 18px 14px;
+  overflow: hidden;
+}
+.add-immersive .thought-editor { flex: 1; }
+.add-immersive .wysi-editor {
+  font-size: calc(var(--font-size) * 1.08);
+  padding: 8px 10px;
+}
+
+/* Immersive toggle button in the editor footer */
+.immersive-btn {
+  width: 30px; height: 30px;
+  border-radius: var(--radius-btn);
+  border: 1px solid transparent;
+  background: var(--item-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  transition: background 0.18s ease, color 0.18s ease,
+              border-color 0.18s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.immersive-btn svg { display: block; pointer-events: none; }
+.immersive-btn:hover {
+  background: var(--item-glass-hover);
+  color: var(--text-primary);
+  border-color: var(--item-border);
+}
+.immersive-btn:active { transform: scale(0.94); }
+.immersive-btn.on {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+}
+.immersive-btn.on:hover { background: var(--accent-hover); color: #fff; }
+
+/* WYSIWYG editor (contenteditable) */
+.wysi-editor {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  outline: none;
+  padding: 6px 8px;
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  font-weight: var(--font-weight);
+  line-height: 1.65;
+  color: var(--text-primary);
+  /* Narrow bar caret (the browser default shape) but in a high-contrast
+     warm colour so it pops against any theme. Block was too chunky;
+     bar + vivid colour is the sweet spot — easy to find without
+     blocking the character to its right. */
+  caret-color: #FF3B30;
+  caret-shape: bar;
+}
+.inline-edit-input,
+.todo-add-input {
+  caret-color: #FF3B30;
+  caret-shape: bar;
+}
+/* Dark theme — slightly warmer hue reads better on dark backgrounds. */
+.theme-dark .wysi-editor,
+.theme-dark .inline-edit-input,
+.theme-dark .todo-add-input {
+  caret-color: #FF9F3B;
+}
+.wysi-editor > div {
+  padding: 2px 0;
+  min-height: 1.6em;
+  position: relative;
+}
+.wysi-editor > .wysi-title {
+  font-size: 1.55em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--divider);
+}
+.wysi-editor > .wysi-h1 { font-size: 1.35em; font-weight: 600; }
+.wysi-editor > .wysi-h2 { font-size: 1.2em;  font-weight: 600; }
+.wysi-editor > .wysi-h3 { font-size: 1.08em; font-weight: 600; }
+.wysi-editor > .wysi-quote {
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.wysi-editor > .wysi-list { padding-left: 20px; position: relative; }
+.wysi-editor > .wysi-list::before {
+  content: '•';
+  position: absolute;
+  left: 6px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.wysi-editor > .wysi-code {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--scheme-tag-bg);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+.wysi-editor > .wysi-divider {
+  border-top: 1px solid var(--divider);
+  margin: 8px 0;
+  color: transparent;
+  user-select: none;
+}
+.wysi-editor:empty::before,
+.wysi-editor > div:first-child:empty::before,
+.wysi-editor > div.wysi-title:empty::before {
+  content: '标题';
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+.wysi-editor > div:not(:first-child):empty::before {
+  content: '';
+}
+
+/* ── Inline markdown rendering ────────────────────────────────────────
+   .md-mark — the literal markdown delimiters (** _ ` # etc). Kept in
+   the DOM so the user can still see/edit them, but visually dimmed so
+   the formatted content is what stands out. .md-bold / .md-italic etc
+   are the inner content with the actual visual effect applied. */
+.wysi-editor .md-mark {
+  color: var(--text-tertiary);
+  opacity: 0.55;
+  font-weight: 400;
+  font-style: normal;
+}
+.wysi-editor .md-bold   { font-weight: 700; color: var(--text-primary); }
+.wysi-editor .md-italic { font-style: italic; }
+.wysi-editor .md-strike { text-decoration: line-through; color: var(--text-secondary); }
+.wysi-editor .md-code {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  background: var(--scheme-tag-bg);
+  padding: 0 4px;
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+
+/* Thought markdown editor */
+.thought-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#thought-textarea {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  font-weight: var(--font-weight);
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  padding: 4px;
+  min-height: 0;
+}
+#thought-textarea::placeholder { color: var(--text-tertiary); }
+
+.editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  flex-shrink: 0;
+}
+
+.type-toggle {
+  display: flex;
+  background: var(--item-glass);
+  border-radius: var(--radius-btn);
+  padding: 2px;
+  gap: 2px;
+}
+.type-toggle button {
+  border: none; background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.86rem; font-weight: 500;
+  padding: 4px 10px;
+  border-radius: calc(var(--radius-btn) - 2px);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.type-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Todo add input */
+.todo-add-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-item);
+  background: var(--item-glass);
+  border: 1px solid var(--item-border);
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.todo-add-input {
+  flex: 1;
+  border: none; background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  outline: none;
+}
+.todo-add-input::placeholder { color: var(--text-tertiary); }
+
+.priority-selector {
+  display: flex; gap: 3px;
+}
+.prio-btn {
+  width: 24px; height: 24px;
+  border: none; background: transparent;
+  cursor: pointer; border-radius: 50%;
+  font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0.4;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.prio-btn.active { opacity: 1; transform: scale(1.2); }
+.prio-btn:hover { opacity: 0.8; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Calendar View
+   ═══════════════════════════════════════════════════════════════════ */
+.calendar-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.calendar-scroller {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  cursor: grab;
+  user-select: none;
+  overscroll-behavior-x: contain;
+}
+.calendar-scroller::-webkit-scrollbar { display: none; }
+.calendar-scroller.dragging { cursor: grabbing; }
+
+/* Each "page" of the calendar is a rows × cols grid that fills the
+   visible area. Pages snap so swiping/scrolling lands on a whole page. */
+.calendar-page {
+  flex: 0 0 100%;
+  display: grid;
+  grid-template-columns: repeat(var(--cal-cols, 4), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--cal-rows, 1), minmax(0, 1fr));
+  scroll-snap-align: start;
+  overflow: hidden;
+}
+
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+/* Right-most cell of each row sits at the page edge — drop its right
+   border so we don't double up against the page-snap boundary. */
+.calendar-day:last-child { border-right: none; }
+
+.cal-day-header {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--divider);
+  flex-shrink: 0;
+}
+.cal-day-name {
+  font-size: 0.72rem; font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.cal-day-date {
+  font-size: 1.1rem; font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+/* Single-row layouts have more vertical room — restore the bigger date. */
+.calendar-view[style*="--cal-rows:1"] .cal-day-header { padding: 8px 12px; }
+.calendar-view[style*="--cal-rows:1"] .cal-day-name   { font-size: 0.79rem; }
+.calendar-view[style*="--cal-rows:1"] .cal-day-date   { font-size: 1.29rem; }
+.cal-day-header.today .cal-day-date {
+  color: var(--accent);
+}
+
+.cal-day-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.cal-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+  background: var(--item-glass);
+  font-size: 0.86rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+  border: 1px solid transparent;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.cal-item:hover { background: var(--item-glass-hover); border-color: var(--item-border); }
+.cal-item.completed { opacity: 0.5; }
+.cal-item-emoji { font-size: 0.93rem; flex-shrink: 0; margin-top: 1px; }
+.cal-item-text { flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Calendar expand-in-place editor — the inline editor is wider than a
+   cal-item, so let it take the full column width and use a more compact
+   internal layout that doesn't blow the cell apart. */
+.cal-inline-edit {
+  margin: 4px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.cal-inline-edit .inline-edit-footer {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.cal-inline-edit .inline-edit-wysi {
+  max-height: 40vh;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Settings View
+   ═══════════════════════════════════════════════════════════════════ */
+.settings-view {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-sidebar {
+  flex: 0 0 130px;
+  border-right: 1px solid var(--divider);
+  overflow-y: auto;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.86rem; font-weight: 500;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+}
+.settings-nav-item:hover { background: var(--item-glass); color: var(--text-primary); }
+.settings-nav-item.active {
+  background: var(--accent);
+  color: #fff;
+}
+.settings-nav-item .nav-icon { font-size: 1rem; }
+
+.settings-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+}
+
+/* ── Mobile: bottom tab bar instead of left sidebar ─────────────── */
+@media (max-width: 768px) {
+  .settings-view { flex-direction: column; }
+
+  .settings-content {
+    flex: 1;
+    min-height: 0;
+    padding: 14px 14px 12px;
+  }
+
+  .settings-sidebar {
+    flex: 0 0 auto;
+    order: 2;                /* push below the content */
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid var(--divider);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    gap: 4px;
+    justify-content: space-around;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .settings-nav-item {
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 4px;
+    font-size: 0.7rem;
+    text-align: center;
+    border-radius: var(--radius-sm);
+  }
+  .settings-nav-item .nav-icon { font-size: 1.18rem; }
+  /* Subtle pill underline accent instead of full-fill on the bar */
+  .settings-nav-item.active {
+    background: var(--item-glass-hover);
+    color: var(--accent);
+  }
+  .theme-dark .settings-nav-item.active { color: var(--accent); }
+}
+
+.settings-section-title {
+  font-size: 1.21rem; font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+
+.settings-group {
+  background: var(--item-glass);
+  border-radius: var(--radius-item);
+  border: 1px solid var(--item-border);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--divider);
+  min-height: 44px;
+}
+.settings-row:last-child { border-bottom: none; }
+
+.settings-row-label {
+  flex: 1;
+  font-size: 0.93rem;
+  color: var(--text-primary);
+}
+.settings-row-sub {
+  font-size: 0.79rem;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  width: 42px; height: 26px;
+  border-radius: 13px;
+  background: rgba(120,120,128,0.25);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.25s;
+  flex-shrink: 0;
+}
+.toggle-switch.on { background: var(--accent); }
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  transition: transform 0.25s;
+}
+.toggle-switch.on::after { transform: translateX(16px); }
+
+/* Segmented control */
+.segment-ctrl {
+  display: flex;
+  background: var(--item-glass);
+  border-radius: var(--radius-btn);
+  padding: 2px; gap: 2px;
+}
+.segment-ctrl button {
+  border: none; background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.86rem; font-weight: 500;
+  padding: 5px 12px;
+  border-radius: calc(var(--radius-btn) - 2px);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.segment-ctrl button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Select */
+.settings-select {
+  border: 1px solid var(--item-border);
+  background: var(--item-glass);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.93rem;
+  padding: 5px 10px;
+  border-radius: var(--radius-btn);
+  outline: none;
+  cursor: pointer;
+  max-width: 180px;
+}
+
+/* Slider — fixed width so all sliders align in a column across rows */
+.settings-slider {
+  -webkit-appearance: none;
+  width: 160px;
+  min-width: 160px;
+  flex: 0 0 160px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--item-border);
+  outline: none;
+  cursor: pointer;
+}
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+/* Value column — fixed width so the slider column never shifts when the
+   readout grows from "60%" to "120px". */
+.settings-slider-val {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  width: 52px;
+  min-width: 52px;
+  flex: 0 0 52px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Color scheme chips */
+.scheme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+}
+.scheme-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 20px;
+  border: 2px solid transparent;
+  background: var(--item-glass);
+  cursor: pointer;
+  font-size: 0.86rem; font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.scheme-chip:hover { border-color: var(--item-border); color: var(--text-primary); }
+.scheme-chip.active { border-color: var(--accent); color: var(--accent); background: var(--scheme-tag-bg); }
+.scheme-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Wallpaper library */
+.wp-category-title {
+  font-size: 0.79rem; font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 10px 14px 6px;
+}
+
+.wp-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.wp-item {
+  width: 72px; height: 54px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 0.15s, transform 0.15s;
+  background: #888;
+}
+.wp-item:hover { transform: scale(1.05); }
+.wp-item.active { border-color: var(--accent); }
+.wp-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.wp-del-btn {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 2;
+}
+.wp-del-btn svg { width: 11px; height: 11px; display: block; pointer-events: none; }
+.wp-item:hover .wp-del-btn { opacity: 1; transform: scale(1); }
+.wp-del-btn:hover { background: rgba(255,59,48,0.92); }
+@media (hover: none) and (pointer: coarse) {
+  /* Touch devices have no hover — keep the delete button always visible */
+  .wp-del-btn { opacity: 1; transform: scale(1); }
+}
+
+.wp-upload-btn {
+  width: 72px; height: 54px;
+  border-radius: var(--radius-sm);
+  border: 2px dashed var(--item-border);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 1.57rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+.wp-upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Emoji picker — horizontal compact layout */
+.emoji-compact-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+.emoji-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--item-glass);
+  border: 1px solid var(--item-border);
+}
+.emoji-slot-label {
+  font-size: 0.79rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.emoji-picker-row { flex-wrap: wrap; align-items: flex-start; }
+.emoji-type-label {
+  font-size: 0.86rem; font-weight: 500;
+  color: var(--text-secondary);
+  width: 60px; flex-shrink: 0;
+}
+.emoji-current {
+  font-size: 1.57rem;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: background 0.15s, transform 0.12s;
+}
+.emoji-current:hover { background: var(--item-glass-hover); transform: scale(1.1); }
+
+/* Chip multi-select — visually identical to segment-ctrl,
+   but each chip toggles independently. */
+.chip-row {
+  display: flex;
+  background: var(--item-glass);
+  border-radius: var(--radius-btn);
+  padding: 2px;
+  gap: 2px;
+}
+.chip {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: calc(var(--radius-btn) - 2px);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: var(--font-family);
+  white-space: nowrap;
+}
+.chip:hover { background: var(--item-glass-hover); color: var(--text-primary); }
+.chip.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Settings sub-group title */
+.settings-group-title {
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 14px 4px 6px;
+}
+.settings-group-title:first-child { padding-top: 0; }
+
+/* Datetime preview text under label */
+.dt-preview {
+  font-size: 0.86rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.emoji-grid-popup {
+  display: none;
+  position: absolute;
+  z-index: 100;
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-item);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  padding: 8px;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 220px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.emoji-grid-popup.show { display: flex; }
+.emoji-opt {
+  font-size: 1.43rem;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.12s;
+  line-height: 1;
+}
+.emoji-opt:hover { background: var(--item-glass-hover); }
+
+/* Reset / danger buttons */
+.danger-btn {
+  border: 1px solid rgba(255,59,48,0.4);
+  background: rgba(255,59,48,0.08);
+  color: #FF3B30;
+  padding: 7px 16px;
+  border-radius: var(--radius-btn);
+  font-size: 0.93rem; font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.danger-btn:hover { background: rgba(255,59,48,0.18); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Glass Buttons
+   ═══════════════════════════════════════════════════════════════════ */
+.glass-btn {
+  border: 1px solid var(--glass-border);
+  background: var(--item-glass);
+  color: var(--text-primary);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 8px 18px;
+  border-radius: var(--radius-btn);
+  font-family: var(--font-family);
+  font-size: 0.93rem; font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.12s;
+}
+.glass-btn:hover { background: var(--item-glass-hover); }
+.glass-btn:active { transform: scale(0.97); }
+.glass-btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+}
+.glass-btn.primary:hover { background: var(--accent-hover); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Edit Modal
+   ═══════════════════════════════════════════════════════════════════ */
+#edit-modal {
+  position: fixed; inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#edit-modal.hidden { display: none; }
+
+.modal-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.40);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(540px, 92vw);
+  max-height: 84vh;
+  background: var(--glass-bg);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--divider);
+  flex-shrink: 0;
+}
+.modal-title {
+  flex: 1;
+  font-size: 1.07rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--divider);
+  flex-shrink: 0;
+}
+
+.modal-field-label {
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.modal-input {
+  border: 1px solid var(--item-border);
+  background: var(--item-glass);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.93rem;
+  padding: 8px 12px;
+  border-radius: var(--radius-btn);
+  outline: none;
+  width: 100%;
+}
+.modal-input:focus { border-color: var(--accent); }
+
+.modal-textarea {
+  border: 1px solid var(--item-border);
+  background: var(--item-glass);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  font-weight: var(--font-weight);
+  line-height: 1.6;
+  padding: 10px 12px;
+  border-radius: var(--radius-btn);
+  outline: none;
+  width: 100%;
+  min-height: 200px;
+  max-height: 50vh;
+  resize: vertical;
+}
+.modal-textarea:focus { border-color: var(--accent); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Markdown rendered content
+   ═══════════════════════════════════════════════════════════════════ */
+.thought-content h1,
+.thought-content h2,
+.thought-content h3,
+.thought-content h4 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 6px 0 3px;
+  color: var(--text-primary);
+}
+.thought-content p { margin: 3px 0; }
+.thought-content ul, .thought-content ol {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+.thought-content li { margin: 1px 0; }
+.thought-content blockquote {
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+  color: var(--text-secondary);
+  margin: 4px 0;
+}
+.thought-content pre {
+  background: var(--scheme-tag-bg);
+  border-radius: 6px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  font-size: 0.79rem;
+  margin: 4px 0;
+}
+.thought-content pre code {
+  background: transparent;
+  padding: 0;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+.thought-content a { color: var(--text-link); text-decoration: none; }
+.thought-content a:hover { text-decoration: underline; }
+.thought-content table {
+  border-collapse: collapse;
+  font-size: 0.79rem;
+  margin: 4px 0;
+}
+.thought-content th, .thought-content td {
+  border: 1px solid var(--divider);
+  padding: 3px 6px;
+  text-align: left;
+}
+.thought-content hr {
+  border: none;
+  border-top: 1px solid var(--divider);
+  margin: 6px 0;
+}
+.thought-content img {
+  max-width: 100%;
+  border-radius: 6px;
+  margin: 4px 0;
+}
+
+/* When the markdown is displayed in the full edit modal, allow more space */
+.modal-md-preview { font-size: var(--font-size); line-height: 1.65; color: var(--text-primary); }
+.modal-md-preview h1 { font-size: 1.4em; }
+.modal-md-preview h2 { font-size: 1.2em; }
+.modal-md-preview h3 { font-size: 1.05em; }
+
+/* clickable affordance on items */
+.thought-item, .todo-item { cursor: pointer; }
+.todo-item.completed { cursor: default; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Onboarding
+   ═══════════════════════════════════════════════════════════════════ */
+#onboarding {
+  position: fixed; inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#onboarding.hidden { display: none; }
+
+.onboarding-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.onboarding-card {
+  position: relative;
+  z-index: 1;
+  width: min(400px, 90vw);
+  background: var(--glass-bg);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
+  padding: 28px 28px 22px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.ob-icon { font-size: 3.43rem; text-align: center; }
+.ob-title { font-size: 1.43rem; font-weight: 700; color: var(--text-primary); text-align: center; }
+.ob-desc { font-size: 1rem; color: var(--text-secondary); text-align: center; line-height: 1.6; }
+
+.ob-footer {
+  display: flex; align-items: center; justify-content: space-between;
+}
+#ob-dots {
+  display: flex; gap: 6px;
+}
+.ob-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  transition: background 0.2s, width 0.2s;
+}
+.ob-dot.active {
+  background: var(--accent);
+  width: 18px;
+  border-radius: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Animations
+   ═══════════════════════════════════════════════════════════════════ */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.main-desktop, .main-mobile, .add-desktop, .add-mobile,
+.calendar-view, .settings-view { animation: fadeSlideIn 0.22s ease; }
+
+/* (Removed: glassBreathe animation — the slowly-pulsing shadow was
+   one of the "AI-design tells" and made the card feel artificial.
+   Real glass doesn't breathe.) */
+
+/* Item appear animation — applied on initial mount of every item. We
+   suppress it on re-renders caused by lightweight in-place actions
+   (up / down / complete) by toggling .suppress-anim on #card-wrapper,
+   so the user doesn't see a fade-in flash on every click. */
+@keyframes itemIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.thought-item, .todo-item { animation: itemIn 0.2s ease; }
+
+/* (View Transitions formerly used for priority bump / complete — replaced
+   by surgical DOM moves in app.js: moveTodoToPriority / moveTodoToCompleted.
+   Kept this stub for future re-introduction if needed.) */
+#card-wrapper.suppress-anim .thought-item,
+#card-wrapper.suppress-anim .todo-item,
+/* The inline editor reuses .thought-item / .todo-item classes; we don't
+   want it to fade in (that reads as a "flash" when expanding a record). */
+.inline-edit,
+.thought-item.editing,
+.todo-item.editing {
+  animation: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Inline edit row — expanded editor that replaces a thought/todo row
+   ═══════════════════════════════════════════════════════════════════ */
+.inline-edit {
+  display: flex !important;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--item-glass-hover);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-item);
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.10),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+  cursor: default;
+  animation: inlineEditIn 0.18s ease;
+  overflow: visible;
+}
+.theme-dark .inline-edit {
+  box-shadow:
+    0 8px 28px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+@keyframes inlineEditIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.inline-edit-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: calc(var(--font-size) * 1.05);
+  font-weight: 500;
+  outline: none;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--divider);
+}
+.inline-edit-input:focus { border-bottom-color: var(--accent); }
+.inline-edit-input::placeholder { color: var(--text-tertiary); }
+
+.inline-edit-wysi {
+  min-height: 120px;
+  max-height: 360px;
+  overflow-y: auto;
+  /* No separate card — blend into the inline-edit container background */
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 2px 0;
+}
+
+.inline-edit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.inline-edit-toolbar .priority-selector { gap: 6px; }
+.inline-edit-meta {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.inline-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--divider);
+  flex-wrap: wrap;
+}
+
+/* Flat style: remove glass + use Notion-like solid hover background */
+.style-flat .inline-edit {
+  background: var(--notion-bg);
+  border: 1px solid var(--accent);
+  box-shadow:
+    0 0 0 1px rgba(15,15,15,0.04),
+    0 6px 18px rgba(15,15,15,0.10);
+}
+
+/* ── Todo inline editor: priority left, actions right; ~20% more compact ── */
+.inline-edit-todo {
+  gap: 8px;
+  padding: 10px 11px;
+}
+.inline-edit-todo .inline-edit-input {
+  font-size: calc(var(--font-size) * 0.95);
+  padding: 3px 0;
+}
+.inline-edit-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 3px;
+  border-top: 1px dashed var(--divider);
+  flex-wrap: wrap;
+}
+.inline-edit-footer .priority-selector {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.inline-edit-footer .prio-btn {
+  font-size: 0.92rem;     /* ~20% smaller than default emoji */
+  padding: 2px 4px;
+}
+.inline-edit-footer .inline-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-top: 0;
+  border-top: none;
+  flex-wrap: nowrap;
+}
+.inline-edit-footer .glass-btn,
+.inline-edit-footer .danger-btn {
+  font-size: 0.74rem;
+  padding: 5px 10px;
+  min-height: 0;
+  line-height: 1.2;
+}
+
+/* ── Thought/Feeling inline editor: same compact footer layout as todos ── */
+.inline-edit-thought {
+  gap: 8px;
+  padding: 10px 11px;
+}
+.inline-edit-thought .type-toggle {
+  padding: 2px;
+  flex-shrink: 0;
+}
+.inline-edit-thought .type-toggle button {
+  font-size: 0.74rem;
+  padding: 4px 9px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Empty State
+   ═══════════════════════════════════════════════════════════════════ */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 10px;
+  color: var(--text-tertiary);
+  font-size: 0.86rem;
+  gap: 6px;
+  text-align: center;
+}
+.empty-state .empty-icon { font-size: 2rem; opacity: 0.5; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Completed todo section header
+   ═══════════════════════════════════════════════════════════════════ */
+.completed-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 4px 6px;
+  font-size: 0.79rem; font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-top: 1px solid var(--divider);
+  margin-top: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.completed-section-header .toggle-icon {
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+.completed-section-header.open .toggle-icon { transform: rotate(90deg); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Misc utilities
+   ═══════════════════════════════════════════════════════════════════ */
+.hidden { display: none !important; }
+
+.settings-row input[type="text"] {
+  border: 1px solid var(--item-border);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.93rem;
+  padding: 5px 10px;
+  border-radius: var(--radius-btn);
+  outline: none;
+  width: 100%;
+}
+.settings-row input[type="text"]:focus {
+  border-color: var(--accent);
+}
+
+/* Default wallpaper chips */
+.wp-color-swatch {
+  width: 72px; height: 54px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.79rem; font-weight: 600;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.wp-color-swatch:hover { transform: scale(1.05); }
+.wp-color-swatch.active { border-color: var(--accent); }
+
+/* Font preview */
+.font-preview {
+  font-size: 1.29rem; font-weight: 500;
+  color: var(--text-primary);
+  margin-top: 4px;
+}
