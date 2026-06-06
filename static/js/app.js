@@ -509,12 +509,20 @@ function renderViewBody() {
    View – Main
    ═══════════════════════════════════════════════════════════════════ */
 function renderMainView() {
+  // Immersive mode: the whole card becomes the thought editor
+  if (state.immersive && state.addingThought) {
+    return `
+      <div class="add-immersive">
+        ${renderThoughtEditor(true)}
+      </div>
+    `;
+  }
   return `
     <div class="main-desktop">
       <div class="thoughts-panel">
         ${renderPanelHead('thought', '想法 & 感受')}
         <div class="panel-scroll">
-          ${state.addingThought ? renderThoughtEditor(false) : ''}
+          ${state.addingThought ? renderThoughtEditor(true) : ''}
           ${renderThoughtsList(state.thoughts)}
         </div>
       </div>
@@ -539,7 +547,7 @@ function renderMainView() {
       <div class="mobile-thoughts-section">
         ${renderPanelHead('thought', '想法 & 感受')}
         <div class="panel-scroll">
-          ${state.addingThought ? renderThoughtEditor(false) : ''}
+          ${state.addingThought ? renderThoughtEditor(true) : ''}
           ${renderThoughtsList(state.thoughts)}
         </div>
       </div>
@@ -2212,8 +2220,8 @@ async function switchView(target) {
     if (state.viewHistory.length > 10) state.viewHistory.shift();
     state.view = target;
   }
-  // Exit immersive editor whenever the view changes
-  if (state.view !== 'add') state.immersive = false;
+  // Exit immersive editor whenever leaving add/main views
+  if (state.view !== 'add' && state.view !== 'main') state.immersive = false;
   // Leaving the main view collapses any open inline add forms.
   if (state.view !== 'main') { state.addingThought = false; state.addingTodo = false; }
   render();
