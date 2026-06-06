@@ -2259,11 +2259,14 @@ function setupWysiEditor(el, initialText = '') {
   let slashPopup = null;
   let slashFilter = '';
   let slashSelectedIdx = 0;
+  let slashStartPos = null;     // document position where '/' was typed
+  let _slashBlurTimer = null;   // delay hide so mousedown on menu can fire
 
   function showSlashMenu(coords) {
     hideSlashMenu();
     slashFilter = '';
     slashSelectedIdx = 0;
+    slashStartPos = editor.state.selection.from;  // cursor is AFTER the '/'
     slashPopup = document.createElement('div');
     slashPopup.className = 'slash-menu';
     slashPopup.style.cssText = `position:fixed;left:${coords.x}px;top:${coords.y + 24}px;z-index:9999`;
@@ -2271,12 +2274,16 @@ function setupWysiEditor(el, initialText = '') {
     document.body.appendChild(slashPopup);
   }
 
-  function renderSlashItems() {
-    if (!slashPopup) return;
+  function getFilteredSlashItems() {
     const q = slashFilter.toLowerCase();
-    const filtered = SLASH_ITEMS.filter(it =>
+    return SLASH_ITEMS.filter(it =>
       it.title.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q)
     );
+  }
+
+  function renderSlashItems() {
+    if (!slashPopup) return;
+    const filtered = getFilteredSlashItems();
     if (!filtered.length) {
       slashPopup.innerHTML = '<div class="slash-empty">没有匹配的命令</div>';
       return;
@@ -2291,30 +2298,36 @@ function setupWysiEditor(el, initialText = '') {
         </div>
       </div>
     `).join('');
-    slashPopup.querySelectorAll('.slash-item').forEach((el, i) => {
-      el.onmouseenter = () => { slashSelectedIdx = i; renderSlashItems(); };
-      el.onmousedown = (e) => {
-        e.preventDefault();
+    slashPopup.querySelectorAll('.slash-item').forEach((itemEl, i) => {
+      itemEl.onmouseenter = () => { slashSelectedIdx = i; renderSlashItems(); };
+      itemEl.onmousedown = (e) => {
+        e.preventDefault();   // keep editor focused
+        e.stopPropagation();
         executeSlash(filtered[i]);
       };
     });
   }
 
   function executeSlash(item) {
-    const deleteLen = 1 + slashFilter.length;
-    for (let i = 0; i < deleteLen; i++) {
-      editor.commands.deleteRange({
-        from: editor.state.selection.from - 1,
-        to: editor.state.selection.from,
-      });
+    // Delete the '/' and any filter text in one operation
+    const curPos = editor.state.selection.from;
+    const deleteFrom = slashStartPos - 1;  // before the '/'
+    if (deleteFrom >= 0 && curPos > deleteFrom) {
+      editor.chain()
+        .focus()
+        .deleteRange({ from: deleteFrom, to: curPos })
+        .run();
     }
-    item.action(editor);
     hideSlashMenu();
+    // Execute the block action after clearing
+    setTimeout(() => item.action(editor), 0);
   }
 
   function hideSlashMenu() {
+    clearTimeout(_slashBlurTimer);
     if (slashPopup) { slashPopup.remove(); slashPopup = null; }
     slashFilter = '';
+    slashStartPos = null;
   }
 
   // ── Floating toolbar ─────────────────────────────────────────────
@@ -2423,36 +2436,42 @@ function setupWysiEditor(el, initialText = '') {
       if (from !== to) showToolbar(); else hideToolbar();
     },
     onUpdate: () => {
-      if (!slashPopup) return;
+      if (!slashPopup || slashStartPos == null) return;
       const { from } = editor.state.selection;
-      const textBefore = editor.state.doc.textBetween(
-        Math.max(0, from - 20), from, '\n'
-      );
-      const slashIdx = textBefore.lastIndexOf('/');
-      if (slashIdx >= 0) {
-        slashFilter = textBefore.slice(slashIdx + 1);
+      // The filter is everything typed after the '/' (which is at slashStartPos)
+      if (from < slashStartPos) { hideSlashMenu(); return; }
+      try {
+        slashFilter = editor.state.doc.textBetween(slashStartPos, from);
         renderSlashItems();
-      } else {
+      } catch {
         hideSlashMenu();
       }
     },
     onBlur: () => {
       hideToolbar();
-      hideSlashMenu();
+      // Delay slash menu hide so mousedown on menu items fires first
+      if (slashPopup) {
+        _slashBlurTimer = setTimeout(() => hideSlashMenu(), 200);
+      }
     },
   });
 
   // ── Keyboard handler for slash menu navigation ───────────────────
   el.addEventListener('keydown', (e) => {
+    // Detect '/' to open slash menu — let it insert first, then show menu
     if (e.key === '/' && !e.metaKey && !e.ctrlKey && !slashPopup) {
-      const coords = editor.view.coordsAtPos(editor.state.selection.from);
-      setTimeout(() => showSlashMenu(coords), 10);
+      // Wait for the '/' to be inserted into the document
+      setTimeout(() => {
+        const coords = editor.view.coordsAtPos(editor.state.selection.from);
+        showSlashMenu(coords);
+      }, 20);
       return;
     }
     if (slashPopup) {
+      const filtered = getFilteredSlashItems();
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        slashSelectedIdx = Math.min(slashSelectedIdx + 1, SLASH_ITEMS.length - 1);
+        slashSelectedIdx = Math.min(slashSelectedIdx + 1, filtered.length - 1);
         renderSlashItems();
         return;
       }
@@ -2464,14 +2483,10 @@ function setupWysiEditor(el, initialText = '') {
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        const q = slashFilter.toLowerCase();
-        const filtered = SLASH_ITEMS.filter(it =>
-          it.title.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q)
-        );
         if (filtered[slashSelectedIdx]) executeSlash(filtered[slashSelectedIdx]);
         return;
       }
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' || e.key === 'Backspace' && slashFilter === '') {
         e.preventDefault();
         hideSlashMenu();
         return;
