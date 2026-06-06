@@ -2220,425 +2220,308 @@ async function switchView(target) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   WYSIWYG editor — Notion-style live markdown rendering.
+   WYSIWYG editor — TipTap (ProseMirror) block editor.
 
-   Each line is a <div> holding the raw markdown text *plus* inline
-   styling spans. As the user types, the line under the caret is
-   re-tokenized so:
-     - **bold**       — content rendered bold, ** markers dimmed
-     - *italic*       — italic text, * markers dimmed
-     - `code`         — monospace inline code, backticks dimmed
-     - ~~strike~~     — strike-through
-     - leading `#`, `##`, `###`, `> `, `- `, `1. ` — line takes the
-       matching block style; the leading marker is dimmed
-   The raw markdown is what `getValue()` returns — the visible spans are
-   purely presentational, so saving still produces clean markdown text.
+   Full Notion-style editing: headings, lists, task lists, tables,
+   code blocks with syntax highlighting, images, callouts, dividers,
+   inline formatting (bold / italic / underline / strike / code /
+   highlight / link), slash commands, drag-and-drop block reorder,
+   keyboard shortcuts, and markdown input shortcuts.
+
+   The raw markdown is what `getValue()` returns — TipTap's tiptap-
+   markdown extension handles serialization so the stored format is
+   still plain markdown text.
    ═══════════════════════════════════════════════════════════════════ */
 function setupWysiEditor(el, initialText = '') {
-  el.contentEditable = 'true';
   el.classList.add('wysi-editor');
-  el.spellcheck = false;
-  // Mobile keyboards (iOS / Android) capitalize the first letter and
-  // auto-correct by default. Both are surprising for Chinese / mixed-
-  // language note-taking and especially bad when the input method
-  // converts pinyin (the IME would commit a capitalized roman char).
-  el.setAttribute('autocapitalize', 'off');
-  el.setAttribute('autocorrect', 'off');
 
-  const escHtml = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-
-  // ── Inline tokenizer ────────────────────────────────────────────────
-  // Order matters: longer / non-greedy markers go first so that `**a**`
-  // doesn't get consumed as italic by `*`. Inline code wins over
-  // everything because backticks shouldn't be styled inside code.
-  function renderInline(raw) {
-    // 1) Inline code first — capture and stash placeholders so the
-    //    remaining replacements don't touch the contents.
-    const stash = [];
-    let s = escHtml(raw).replace(/`([^`\n]+?)`/g, (_, p1) => {
-      const i = stash.length;
-      stash.push(
-        '<span class="md-mark">`</span>'
-        + '<code class="md-code">' + p1 + '</code>'
-        + '<span class="md-mark">`</span>'
-      );
-      return ` ${i} `;
-    });
-    // 2) Bold **…** / __…__ (must be before single-marker italic)
-    s = s.replace(/\*\*([^*\n]+?)\*\*/g,
-      '<span class="md-mark">**</span><b class="md-bold">$1</b><span class="md-mark">**</span>');
-    s = s.replace(/__([^_\n]+?)__/g,
-      '<span class="md-mark">__</span><b class="md-bold">$1</b><span class="md-mark">__</span>');
-    // 3) Strike-through ~~…~~
-    s = s.replace(/~~([^~\n]+?)~~/g,
-      '<span class="md-mark">~~</span><s class="md-strike">$1</s><span class="md-mark">~~</span>');
-    // 4) Italic *…* / _…_  — single marker; require non-asterisk content
-    s = s.replace(/(^|[^\*])\*([^*\n]+?)\*(?!\*)/g,
-      '$1<span class="md-mark">*</span><i class="md-italic">$2</i><span class="md-mark">*</span>');
-    s = s.replace(/(^|[^_])_([^_\n]+?)_(?!_)/g,
-      '$1<span class="md-mark">_</span><i class="md-italic">$2</i><span class="md-mark">_</span>');
-    // 5) Restore code stashes
-    s = s.replace(/ (\d+) /g, (_, i) => stash[parseInt(i, 10)]);
-    return s || '<br>';                            // empty → preserve height
-  }
-
-  // ── Block / line tokenizer ──────────────────────────────────────────
-  // Returns { cls, html } based on leading-marker patterns. The first
-  // line is always the title (large, bold) regardless of content.
-  function renderLine(text, isTitle) {
-    if (isTitle) {
-      return { cls: 'wysi-title', html: renderInline(text) };
-    }
-    let m;
-    if ((m = text.match(/^(#{1,3})\s/))) {
-      return {
-        cls: `wysi-h${m[1].length}`,
-        html: `<span class="md-mark">${m[0]}</span>${renderInline(text.slice(m[0].length))}`,
-      };
-    }
-    if ((m = text.match(/^>\s/))) {
-      return {
-        cls: 'wysi-quote',
-        html: `<span class="md-mark">${m[0]}</span>${renderInline(text.slice(m[0].length))}`,
-      };
-    }
-    if ((m = text.match(/^([-*+])\s/))) {
-      return {
-        cls: 'wysi-list',
-        html: `<span class="md-mark">${m[0]}</span>${renderInline(text.slice(m[0].length))}`,
-      };
-    }
-    if ((m = text.match(/^(\d+\.)\s/))) {
-      return {
-        cls: 'wysi-list',
-        html: `<span class="md-mark">${m[0]}</span>${renderInline(text.slice(m[0].length))}`,
-      };
-    }
-    if (text === '---' || text === '***') {
-      return { cls: 'wysi-divider', html: renderInline(text) };
-    }
-    if (/^```/.test(text)) {
-      return { cls: 'wysi-code', html: renderInline(text) };
-    }
-    return { cls: '', html: renderInline(text) };
-  }
-
-  // ── Caret save / restore (text-offset within a line) ────────────────
-  function getCaretOffset(lineEl) {
-    const sel = window.getSelection();
-    if (!sel.rangeCount) return null;
-    const r = sel.getRangeAt(0);
-    if (!lineEl.contains(r.startContainer)) return null;
-    let offset = 0;
-    const walker = document.createTreeWalker(lineEl, NodeFilter.SHOW_TEXT, null);
-    let n;
-    while ((n = walker.nextNode())) {
-      if (n === r.startContainer) return offset + r.startOffset;
-      offset += n.nodeValue.length;
-    }
-    return offset;
-  }
-  function setCaretOffset(lineEl, offset) {
-    if (offset == null) return;
-    const sel = window.getSelection();
-    const range = document.createRange();
-    let remaining = Math.max(0, offset);
-    const walker = document.createTreeWalker(lineEl, NodeFilter.SHOW_TEXT, null);
-    let n;
-    while ((n = walker.nextNode())) {
-      const len = n.nodeValue.length;
-      if (remaining <= len) {
-        range.setStart(n, remaining);
-        range.setEnd(n, remaining);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        return;
+  // ── Slash command menu items ─────────────────────────────────────
+  const SLASH_ITEMS = [
+    { title: '文本',       icon: '📝', desc: '普通段落',           action: e => e.chain().focus().setParagraph().run() },
+    { title: '标题 1',     icon: 'H1', desc: '大标题',            action: e => e.chain().focus().setHeading({ level: 1 }).run() },
+    { title: '标题 2',     icon: 'H2', desc: '中标题',            action: e => e.chain().focus().setHeading({ level: 2 }).run() },
+    { title: '标题 3',     icon: 'H3', desc: '小标题',            action: e => e.chain().focus().setHeading({ level: 3 }).run() },
+    { title: '无序列表',   icon: '•',  desc: '项目符号列表',       action: e => e.chain().focus().toggleBulletList().run() },
+    { title: '有序列表',   icon: '1.',  desc: '编号列表',          action: e => e.chain().focus().toggleOrderedList().run() },
+    { title: '待办列表',   icon: '☑', desc: '可勾选的任务列表',    action: e => e.chain().focus().toggleTaskList().run() },
+    { title: '引用',       icon: '❝', desc: '引用块',             action: e => e.chain().focus().toggleBlockquote().run() },
+    { title: '代码块',     icon: '<>', desc: '带语法高亮的代码',    action: e => e.chain().focus().toggleCodeBlock().run() },
+    { title: '表格',       icon: '▦', desc: '插入 3×3 表格',      action: e => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+    { title: '分割线',     icon: '—', desc: '水平分隔线',          action: e => e.chain().focus().setHorizontalRule().run() },
+    { title: '图片',       icon: '🖼', desc: '通过 URL 插入图片',  action: e => {
+        const url = prompt('输入图片 URL');
+        if (url) e.chain().focus().setImage({ src: url }).run();
       }
-      remaining -= len;
+    },
+  ];
+
+  // ── Slash command popup ──────────────────────────────────────────
+  let slashPopup = null;
+  let slashFilter = '';
+  let slashSelectedIdx = 0;
+
+  function showSlashMenu(coords) {
+    hideSlashMenu();
+    slashFilter = '';
+    slashSelectedIdx = 0;
+    slashPopup = document.createElement('div');
+    slashPopup.className = 'slash-menu';
+    slashPopup.style.cssText = `position:fixed;left:${coords.x}px;top:${coords.y + 24}px;z-index:9999`;
+    renderSlashItems();
+    document.body.appendChild(slashPopup);
+  }
+
+  function renderSlashItems() {
+    if (!slashPopup) return;
+    const q = slashFilter.toLowerCase();
+    const filtered = SLASH_ITEMS.filter(it =>
+      it.title.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q)
+    );
+    if (!filtered.length) {
+      slashPopup.innerHTML = '<div class="slash-empty">没有匹配的命令</div>';
+      return;
     }
-    // Fallback — collapse to end of line
-    range.selectNodeContents(lineEl);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-
-  // ── Reflow one line, preserving cursor position ─────────────────────
-  function reflowLine(lineEl) {
-    const isTitle = lineEl === el.children[0];
-    const text = lineEl.textContent || '';
-    const { cls, html } = renderLine(text, isTitle);
-    const offset = getCaretOffset(lineEl);
-    lineEl.className = cls;
-    lineEl.innerHTML = html;
-    if (offset != null) setCaretOffset(lineEl, offset);
-  }
-
-  function reflowAll() {
-    [...el.children].forEach(reflowLine);
-  }
-
-  function setContent(text) {
-    const lines = (text || '').split('\n');
-    el.innerHTML = lines
-      .map(l => `<div>${escHtml(l) || '<br>'}</div>`)
-      .join('') || '<div><br></div>';
-    reflowAll();
-  }
-
-  // Ensure new lines are <div>s (Safari otherwise emits <p>)
-  try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch (e) {}
-
-  // ── Event handling ─────────────────────────────────────────────────
-  // Skip reflow while an IME composition is in progress so we don't
-  // interrupt pinyin / kana entry mid-stroke.
-  //
-  // CRITICAL — there is a race between `input` and `compositionstart` on
-  // the very first keystroke with a Chinese IME on macOS.  In Safari /
-  // Chrome, `input` can fire BEFORE `compositionstart`, so our manual
-  // `composing` flag is still false.  If we reflow (set innerHTML) at
-  // that moment we destroy the nascent composition and the raw pinyin
-  // letter gets committed — this is the "首行首字母变英文" bug.
-  //
-  // Two complementary safeguards:
-  //   1. Check `e.isComposing` (the browser's own flag — set even before
-  //      compositionstart reaches our handler).
-  //   2. Defer the reflow via requestAnimationFrame so compositionstart
-  //      has time to fire and set our `composing` flag before we act.
-  let composing = false;
-  el.addEventListener('compositionstart', () => { composing = true; });
-  el.addEventListener('compositionend',   () => { composing = false; maybeUndoAutoCap(); reflowCurrentLine(); });
-
-  // macOS "Capitalize words automatically" force-uppercases the first letter
-  // of a line even with autocapitalize="off" (the attribute only covers
-  // virtual keyboards). That's a constant nuisance when typing pinyin. We
-  // can't disable the OS behaviour from a web page, so we undo it: if a line
-  // gains a leading uppercase ASCII letter the user did NOT type with Shift /
-  // Caps Lock, lower-case it back. Deliberate capitals are preserved.
-  let _shiftHeld = false;
-  el.addEventListener('keydown', (e) => {
-    if (e.key && e.key.length === 1) {
-      _shiftHeld = e.shiftKey || e.getModifierState('CapsLock');
-    }
-  });
-  function maybeUndoAutoCap() {
-    if (_shiftHeld || composing) return;
-    const line = currentLine();
-    if (!line) return;
-    const text = line.textContent || '';
-    if (!/^[A-Z]/.test(text)) return;
-    const off = getCaretOffset(line);
-    line.textContent = text.charAt(0).toLowerCase() + text.slice(1);
-    if (off != null) setCaretOffset(line, off);
-  }
-
-  function reflowCurrentLine() {
-    if (composing) return;   // extra guard
-    const sel = window.getSelection();
-    if (!sel.rangeCount) { reflowAll(); return; }
-    let line = sel.anchorNode;
-    if (!line) { reflowAll(); return; }
-    if (line.nodeType === Node.TEXT_NODE) line = line.parentNode;
-    while (line && line.parentNode !== el) line = line.parentNode;
-    if (!line) { reflowAll(); return; }
-    // If the user just split a line (Enter), the new sibling needs styling too.
-    reflowLine(line);
-    // Also re-apply title styling if the title line was edited (it's just
-    // a class — text content isn't touched).
-    const first = el.children[0];
-    if (first && !first.classList.contains('wysi-title')) reflowLine(first);
-  }
-
-  // Deferred reflow — wait one animation frame so compositionstart can fire
-  // before we touch the DOM.  Coalesces rapid input events into one reflow.
-  let _reflowRaf = 0;
-  el.addEventListener('input', (e) => {
-    if (composing || e.isComposing) return;
-    cancelAnimationFrame(_reflowRaf);
-    _reflowRaf = requestAnimationFrame(() => {
-      if (composing) return;   // composition started during the wait
-      maybeUndoAutoCap();
-      reflowCurrentLine();
-    });
-  });
-
-  // Paste as plain text — keep the editor's markup clean
-  el.addEventListener('paste', (e) => {
-    e.preventDefault();
-    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-    document.execCommand('insertText', false, text);
-  });
-
-  /* ── Notion-ish keyboard enhancements ─────────────────────────────────
-     The goal here is "typing feels right" without rebuilding into a full
-     block-based editor:
-       • Cmd/Ctrl+B / I / E / Shift+X — wrap (or unwrap) selection with
-         **bold** / *italic* / `code` / ~~strike~~ markers.
-       • Enter at end of "- foo" creates "- " on the next line. Enter on
-         an empty list marker exits the list. Same for "1. " ordered.
-       • Backspace at the very start of "- " deletes the marker.
-       • Tab / Shift+Tab indents the current list item by two spaces.
-     All shortcuts respect IME composition state (skipped while composing
-     so they don't fight Chinese/Japanese pinyin entry).            */
-  function currentLine() {
-    const sel = window.getSelection();
-    if (!sel.rangeCount) return null;
-    let n = sel.anchorNode;
-    if (n && n.nodeType === Node.TEXT_NODE) n = n.parentNode;
-    while (n && n.parentNode !== el) n = n.parentNode;
-    return n;
-  }
-  function caretAtStart(line) {
-    const sel = window.getSelection();
-    if (!sel.rangeCount) return false;
-    return getCaretOffset(line) === 0;
-  }
-  function wrapSelection(marker, endMarker) {
-    if (composing) return false;
-    endMarker = endMarker || marker;
-    const sel = window.getSelection();
-    if (!sel.rangeCount) return false;
-    const r = sel.getRangeAt(0);
-    const text = r.toString();
-    if (text) {
-      // Toggle: if selection is already wrapped with marker, strip it
-      const line = currentLine();
-      if (line) {
-        const lineText = line.textContent || '';
-        const start = r.startOffset, end = r.endOffset;
-        const before = lineText.slice(Math.max(0, start - marker.length), start);
-        const after  = lineText.slice(end, end + endMarker.length);
-        if (before === marker && after === endMarker) {
-          // Unwrap — replace ${marker}${text}${endMarker} with ${text}
-          document.execCommand('insertText', false, text);
-          return true;
-        }
-      }
-      document.execCommand('insertText', false, marker + text + endMarker);
-      // Restore selection to cover the inner text
-      return true;
-    }
-    // No selection — insert markers and place caret between them
-    document.execCommand('insertText', false, marker + endMarker);
-    const sel2 = window.getSelection();
-    if (sel2.rangeCount) {
-      const r2 = sel2.getRangeAt(0);
-      r2.setStart(r2.startContainer, r2.startOffset - endMarker.length);
-      r2.collapse(true);
-    }
-    return true;
-  }
-  // Match a leading bullet/ordered marker. Captures: 1=indent, 2=marker (incl. trailing space)
-  const LIST_RE = /^(\s*)([-*+]\s|\d+\.\s)/;
-
-  el.addEventListener('keydown', (e) => {
-    if (composing) return;
-    const meta = e.metaKey || e.ctrlKey;
-    // ── Inline formatting shortcuts ──────────────────────────────────
-    if (meta && !e.shiftKey && !e.altKey) {
-      const k = e.key.toLowerCase();
-      if (k === 'b') { e.preventDefault(); wrapSelection('**'); reflowCurrentLine(); return; }
-      if (k === 'i') { e.preventDefault(); wrapSelection('*');  reflowCurrentLine(); return; }
-      if (k === 'e') { e.preventDefault(); wrapSelection('`');  reflowCurrentLine(); return; }
-    }
-    if (meta && e.shiftKey && !e.altKey) {
-      const k = e.key.toLowerCase();
-      if (k === 'x' || k === 's') {
-        e.preventDefault(); wrapSelection('~~'); reflowCurrentLine(); return;
-      }
-    }
-    const line = currentLine();
-    if (!line) return;
-    const text = line.textContent || '';
-    const m = text.match(LIST_RE);
-
-    // ── Smart Enter inside a list ─────────────────────────────────────
-    if (e.key === 'Enter' && !e.shiftKey && m) {
-      const restAfterMarker = text.slice(m[0].length);
-      if (restAfterMarker.trim() === '') {
-        // Empty list item → exit the list (remove the marker)
+    slashSelectedIdx = Math.min(slashSelectedIdx, filtered.length - 1);
+    slashPopup.innerHTML = filtered.map((it, i) => `
+      <div class="slash-item ${i === slashSelectedIdx ? 'active' : ''}" data-slash-idx="${i}">
+        <span class="slash-icon">${it.icon}</span>
+        <div class="slash-text">
+          <div class="slash-title">${it.title}</div>
+          <div class="slash-desc">${it.desc}</div>
+        </div>
+      </div>
+    `).join('');
+    slashPopup.querySelectorAll('.slash-item').forEach((el, i) => {
+      el.onmouseenter = () => { slashSelectedIdx = i; renderSlashItems(); };
+      el.onmousedown = (e) => {
         e.preventDefault();
-        line.textContent = '';
-        reflowLine(line);
-        setCaretOffset(line, 0);
-        return;
-      }
-      // Non-empty → after the default Enter splits, prefix the new line
-      // with the same marker so the list keeps flowing. We do this by
-      // letting Enter run, then in the next tick injecting the marker.
-      const indent = m[1];
-      let marker = m[2];
-      // Auto-increment ordered list numbers (1. → 2.)
-      const ord = marker.match(/^(\d+)(\.\s)$/);
-      if (ord) marker = (parseInt(ord[1], 10) + 1) + ord[2];
-      // Let the browser do the line split first
-      setTimeout(() => {
-        document.execCommand('insertText', false, indent + marker);
-        reflowCurrentLine();
-      }, 0);
-      return;
-    }
+        executeSlash(filtered[i]);
+      };
+    });
+  }
 
-    // ── Smart Backspace: at the very start of "- " strip the marker ──
-    if (e.key === 'Backspace' && !e.shiftKey && m && caretAtStart(line)) {
-      e.preventDefault();
-      line.textContent = text.slice(m[0].length);
-      reflowLine(line);
-      setCaretOffset(line, 0);
-      return;
+  function executeSlash(item) {
+    const deleteLen = 1 + slashFilter.length;
+    for (let i = 0; i < deleteLen; i++) {
+      editor.commands.deleteRange({
+        from: editor.state.selection.from - 1,
+        to: editor.state.selection.from,
+      });
     }
+    item.action(editor);
+    hideSlashMenu();
+  }
 
-    // ── Tab / Shift+Tab: indent / outdent a list line ─────────────────
-    if (e.key === 'Tab' && m) {
-      e.preventDefault();
-      if (e.shiftKey) {
-        // Outdent: remove up to 2 leading spaces
-        const stripped = text.replace(/^( {1,2})/, '');
-        if (stripped !== text) {
-          line.textContent = stripped;
-          reflowLine(line);
-          setCaretOffset(line, Math.max(0, (getCaretOffset(line) || 0) - 2));
+  function hideSlashMenu() {
+    if (slashPopup) { slashPopup.remove(); slashPopup = null; }
+    slashFilter = '';
+  }
+
+  // ── Floating toolbar ─────────────────────────────────────────────
+  let toolbar = null;
+
+  function showToolbar() {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) { hideToolbar(); return; }
+    hideToolbar();
+    toolbar = document.createElement('div');
+    toolbar.className = 'wysi-toolbar';
+    const btns = [
+      { cmd: 'bold',      label: 'B',  style: 'font-weight:700', check: 'bold' },
+      { cmd: 'italic',    label: 'I',  style: 'font-style:italic', check: 'italic' },
+      { cmd: 'underline', label: 'U',  style: 'text-decoration:underline', check: 'underline' },
+      { cmd: 'strike',    label: 'S',  style: 'text-decoration:line-through', check: 'strike' },
+      { cmd: 'code',      label: '< >', style: 'font-family:monospace;font-size:11px', check: 'code' },
+      { cmd: 'highlight', label: 'H',  style: 'background:#ffe066;color:#000;padding:0 3px;border-radius:2px', check: 'highlight' },
+      { cmd: 'link',      label: '🔗', style: '', check: 'link' },
+    ];
+    toolbar.innerHTML = btns.map(b => {
+      const active = editor.isActive(b.check) ? ' active' : '';
+      return `<button class="wysi-tb-btn${active}" data-cmd="${b.cmd}" style="${b.style}" title="${b.cmd}">${b.label}</button>`;
+    }).join('');
+
+    toolbar.querySelectorAll('.wysi-tb-btn').forEach(btn => {
+      btn.onmousedown = (e) => {
+        e.preventDefault();
+        const cmd = btn.dataset.cmd;
+        if (cmd === 'link') {
+          if (editor.isActive('link')) {
+            editor.chain().focus().unsetLink().run();
+          } else {
+            const url = prompt('输入链接 URL');
+            if (url) editor.chain().focus().setLink({ href: url }).run();
+          }
+        } else {
+          const methodName = 'toggle' + cmd.charAt(0).toUpperCase() + cmd.slice(1);
+          editor.chain().focus()[methodName]().run();
         }
+        setTimeout(showToolbar, 10);
+      };
+    });
+
+    const coords = editor.view.coordsAtPos(from);
+    toolbar.style.cssText = `position:fixed;left:${coords.left}px;top:${coords.top - 44}px;z-index:9999`;
+    document.body.appendChild(toolbar);
+  }
+
+  function hideToolbar() {
+    if (toolbar) { toolbar.remove(); toolbar = null; }
+  }
+
+  // ── Build the TipTap editor ──────────────────────────────────────
+  const T = window.TipTap;
+  const editor = new T.Editor({
+    element: el,
+    extensions: [
+      T.StarterKit.configure({
+        codeBlock: false,
+        heading: { levels: [1, 2, 3] },
+      }),
+      T.CodeBlockLowlight.configure({ lowlight: T.lowlight }),
+      T.Table.configure({ resizable: true }),
+      T.TableRow,
+      T.TableCell,
+      T.TableHeader,
+      T.TaskList,
+      T.TaskItem.configure({ nested: true }),
+      T.Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer' } }),
+      T.Highlight.configure({ multicolor: false }),
+      T.Underline,
+      T.Image,
+      T.TextStyle,
+      T.Color,
+      T.TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      T.Typography,
+      T.Placeholder.configure({
+        placeholder: ({ node, pos }) => {
+          if (pos === 0) return '输入标题...';
+          if (node.type.name === 'heading') return '标题';
+          return "输入内容，或键入 '/' 选择格式...";
+        },
+        showOnlyWhenEditable: true,
+        showOnlyCurrent: true,
+      }),
+      T.Markdown.configure({
+        html: true,
+        transformPastedText: true,
+        transformCopiedText: true,
+      }),
+    ],
+    content: '',
+    autofocus: false,
+    editorProps: {
+      attributes: {
+        class: 'wysi-tiptap-content',
+        spellcheck: 'false',
+        autocapitalize: 'off',
+        autocorrect: 'off',
+      },
+    },
+    onSelectionUpdate: () => {
+      const { from, to } = editor.state.selection;
+      if (from !== to) showToolbar(); else hideToolbar();
+    },
+    onUpdate: () => {
+      if (!slashPopup) return;
+      const { from } = editor.state.selection;
+      const textBefore = editor.state.doc.textBetween(
+        Math.max(0, from - 20), from, '\n'
+      );
+      const slashIdx = textBefore.lastIndexOf('/');
+      if (slashIdx >= 0) {
+        slashFilter = textBefore.slice(slashIdx + 1);
+        renderSlashItems();
       } else {
-        line.textContent = '  ' + text;
-        reflowLine(line);
-        setCaretOffset(line, (getCaretOffset(line) || 0) + 2);
+        hideSlashMenu();
       }
-      return;
-    }
+    },
+    onBlur: () => {
+      hideToolbar();
+      hideSlashMenu();
+    },
   });
 
-  setContent(initialText);
+  // ── Keyboard handler for slash menu navigation ───────────────────
+  el.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !e.metaKey && !e.ctrlKey && !slashPopup) {
+      const coords = editor.view.coordsAtPos(editor.state.selection.from);
+      setTimeout(() => showSlashMenu(coords), 10);
+      return;
+    }
+    if (slashPopup) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        slashSelectedIdx = Math.min(slashSelectedIdx + 1, SLASH_ITEMS.length - 1);
+        renderSlashItems();
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        slashSelectedIdx = Math.max(slashSelectedIdx - 1, 0);
+        renderSlashItems();
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const q = slashFilter.toLowerCase();
+        const filtered = SLASH_ITEMS.filter(it =>
+          it.title.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q)
+        );
+        if (filtered[slashSelectedIdx]) executeSlash(filtered[slashSelectedIdx]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        hideSlashMenu();
+        return;
+      }
+    }
+  }, true);
 
+  // ── Load initial content (markdown) ──────────────────────────────
+  if (initialText) {
+    editor.commands.setContent(initialText);
+  }
+
+  // ── Return same API as old editor ────────────────────────────────
   return {
     el,
+    editor,
     focus() {
-      el.focus();
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
+      editor.commands.focus('end');
     },
     getValue() {
-      return [...el.children].map(d => d.textContent || '').join('\n');
+      return editor.storage.markdown.getMarkdown();
     },
     getTitle() {
-      const t = (el.children[0]?.textContent || '').trim();
-      return t.replace(/^#+\s*/, '');
+      const firstNode = editor.state.doc.firstChild;
+      if (!firstNode) return '';
+      return firstNode.textContent.replace(/^#+\s*/, '').trim();
     },
     getBody() {
-      const ch = [...el.children];
-      if (ch.length <= 1) return '';
-      return ch.slice(1).map(d => d.textContent || '').join('\n');
+      const md = editor.storage.markdown.getMarkdown();
+      const lines = md.split('\n');
+      let start = 0;
+      while (start < lines.length && !lines[start].trim()) start++;
+      if (start < lines.length) start++;
+      while (start < lines.length && !lines[start].trim()) start++;
+      return lines.slice(start).join('\n');
     },
-    setValue(text) { setContent(text); },
+    setValue(text) {
+      editor.commands.setContent(text || '');
+    },
     isEmpty() {
-      return [...el.children].every(d => !(d.textContent || '').trim());
+      return editor.isEmpty;
+    },
+    destroy() {
+      hideToolbar();
+      hideSlashMenu();
+      editor.destroy();
     },
   };
 }
+
 
 let activeWysiEditor = null;
 
