@@ -2392,6 +2392,19 @@ function setupWysiEditor(el, initialText = '') {
   // ── Event handling ─────────────────────────────────────────────────
   // Skip reflow while an IME composition is in progress so we don't
   // interrupt pinyin / kana entry mid-stroke.
+  //
+  // CRITICAL — there is a race between `input` and `compositionstart` on
+  // the very first keystroke with a Chinese IME on macOS.  In Safari /
+  // Chrome, `input` can fire BEFORE `compositionstart`, so our manual
+  // `composing` flag is still false.  If we reflow (set innerHTML) at
+  // that moment we destroy the nascent composition and the raw pinyin
+  // letter gets committed — this is the "首行首字母变英文" bug.
+  //
+  // Two complementary safeguards:
+  //   1. Check `e.isComposing` (the browser's own flag — set even before
+  //      compositionstart reaches our handler).
+  //   2. Defer the reflow via requestAnimationFrame so compositionstart
+  //      has time to fire and set our `composing` flag before we act.
   let composing = false;
   el.addEventListener('compositionstart', () => { composing = true; });
   el.addEventListener('compositionend',   () => { composing = false; maybeUndoAutoCap(); reflowCurrentLine(); });
@@ -2409,7 +2422,7 @@ function setupWysiEditor(el, initialText = '') {
     }
   });
   function maybeUndoAutoCap() {
-    if (_shiftHeld) return;
+    if (_shiftHeld || composing) return;
     const line = currentLine();
     if (!line) return;
     const text = line.textContent || '';
@@ -2420,6 +2433,7 @@ function setupWysiEditor(el, initialText = '') {
   }
 
   function reflowCurrentLine() {
+    if (composing) return;   // extra guard
     const sel = window.getSelection();
     if (!sel.rangeCount) { reflowAll(); return; }
     let line = sel.anchorNode;
@@ -2435,10 +2449,17 @@ function setupWysiEditor(el, initialText = '') {
     if (first && !first.classList.contains('wysi-title')) reflowLine(first);
   }
 
-  el.addEventListener('input', () => {
-    if (composing) return;
-    maybeUndoAutoCap();
-    reflowCurrentLine();
+  // Deferred reflow — wait one animation frame so compositionstart can fire
+  // before we touch the DOM.  Coalesces rapid input events into one reflow.
+  let _reflowRaf = 0;
+  el.addEventListener('input', (e) => {
+    if (composing || e.isComposing) return;
+    cancelAnimationFrame(_reflowRaf);
+    _reflowRaf = requestAnimationFrame(() => {
+      if (composing) return;   // composition started during the wait
+      maybeUndoAutoCap();
+      reflowCurrentLine();
+    });
   });
 
   // Paste as plain text — keep the editor's markup clean
