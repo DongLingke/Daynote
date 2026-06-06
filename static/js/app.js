@@ -2300,27 +2300,44 @@ function setupWysiEditor(el, initialText = '') {
     `).join('');
     slashPopup.querySelectorAll('.slash-item').forEach((itemEl, i) => {
       itemEl.onmouseenter = () => { slashSelectedIdx = i; renderSlashItems(); };
-      itemEl.onmousedown = (e) => {
-        e.preventDefault();   // keep editor focused
+      // Use pointerdown — fires before blur, and works for both mouse + touch
+      itemEl.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        executeSlash(filtered[i]);
-      };
+        e.stopImmediatePropagation();
+        const chosen = filtered[i];
+        if (chosen) executeSlash(chosen);
+      }, { capture: true });
     });
   }
 
   function executeSlash(item) {
-    // Delete the '/' and any filter text in one operation
-    const curPos = editor.state.selection.from;
-    const deleteFrom = slashStartPos - 1;  // before the '/'
-    if (deleteFrom >= 0 && curPos > deleteFrom) {
-      editor.chain()
-        .focus()
-        .deleteRange({ from: deleteFrom, to: curPos })
-        .run();
-    }
-    hideSlashMenu();
-    // Execute the block action after clearing
-    setTimeout(() => item.action(editor), 0);
+    // 1. Hide menu FIRST so blur timer can't interfere
+    const popup = slashPopup;
+    slashPopup = null;
+    if (popup) popup.remove();
+
+    // 2. Refocus editor and delete the '/' plus filter text
+    const startPos = slashStartPos;
+    slashFilter = '';
+    slashStartPos = null;
+    clearTimeout(_slashBlurTimer);
+
+    editor.commands.focus();
+
+    // Give focus a tick to settle, then delete + apply
+    requestAnimationFrame(() => {
+      const curPos = editor.state.selection.from;
+      const deleteFrom = startPos != null ? startPos - 1 : Math.max(0, curPos - 1);
+
+      if (deleteFrom >= 0 && curPos > deleteFrom) {
+        editor.chain()
+          .deleteRange({ from: deleteFrom, to: curPos })
+          .run();
+      }
+      // Apply the block action
+      item.action(editor);
+    });
   }
 
   function hideSlashMenu() {
@@ -2449,9 +2466,9 @@ function setupWysiEditor(el, initialText = '') {
     },
     onBlur: () => {
       hideToolbar();
-      // Delay slash menu hide so mousedown on menu items fires first
+      // Delay slash menu hide so pointer events on menu items fire first
       if (slashPopup) {
-        _slashBlurTimer = setTimeout(() => hideSlashMenu(), 200);
+        _slashBlurTimer = setTimeout(() => hideSlashMenu(), 400);
       }
     },
   });
