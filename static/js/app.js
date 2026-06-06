@@ -1918,10 +1918,17 @@ function bindGlobalEvents() {
       case 'save-todo':    await saveTodo();    break;
       case 'save-thought': await saveThought(); break;
       case 'cal-day-add':  await openCalDayAdd(el.dataset.date); break;
-      case 'toggle-immersive':
+      case 'toggle-immersive': {
+        // Preserve editor content across the re-render
+        const savedContent = activeWysiEditor ? activeWysiEditor.getValue() : '';
         state.immersive = !state.immersive;
         render();
+        if (activeWysiEditor && savedContent) {
+          activeWysiEditor.setValue(savedContent);
+          activeWysiEditor.focus();
+        }
         break;
+      }
       case 'set-tab':
         state.settingsTab = el.dataset.tab;
         render(); break;
