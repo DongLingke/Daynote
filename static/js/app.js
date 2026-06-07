@@ -72,6 +72,7 @@ const DEFAULT_SETTINGS = {
   active_wp_mobile_dark: '',
   emoji_thought: '🧠',
   emoji_feeling: '👀',
+  emoji_daynote: '🪶',
   emoji_todo_4: '🌕',
   emoji_todo_3: '🌖',
   emoji_todo_2: '🌗',
@@ -247,6 +248,7 @@ const utils = {
     if (item.emoji) return item.emoji;
     if (item.type === 'thought')  return state.settings.emoji_thought || '🧠';
     if (item.type === 'feeling')  return state.settings.emoji_feeling || '👀';
+    if (item.type === 'daynote')  return state.settings.emoji_daynote || '🪶';
     if (item.priority !== undefined) return state.settings[`emoji_todo_${item.priority}`] || CFG.PRIO_DEFAULT_EMOJI[item.priority];
     return '•';
   },
@@ -620,6 +622,7 @@ function renderThoughtInlineEditor(data) {
         <div class="type-toggle">
           <button class="${data.type==='thought'?'active':''}" data-act="inline-type" data-type="thought">${utils.esc(s.emoji_thought)} 想法</button>
           <button class="${data.type==='feeling'?'active':''}" data-act="inline-type" data-type="feeling">${utils.esc(s.emoji_feeling)} 感受</button>
+          <button class="${data.type==='daynote'?'active':''}" data-act="inline-type" data-type="daynote">${utils.esc(s.emoji_daynote)} 日迹</button>
         </div>
         <div class="inline-edit-actions">
           <button class="danger-btn" data-act="inline-delete">删除</button>
@@ -791,6 +794,7 @@ function renderThoughtEditor(showImmersive = true) {
         <div class="type-toggle">
           <button class="${state.addType==='thought'?'active':''}" data-act="set-type" data-type="thought">${utils.esc(state.settings.emoji_thought)} 想法</button>
           <button class="${state.addType==='feeling'?'active':''}" data-act="set-type" data-type="feeling">${utils.esc(state.settings.emoji_feeling)} 感受</button>
+          <button class="${state.addType==='daynote'?'active':''}" data-act="set-type" data-type="daynote">${utils.esc(state.settings.emoji_daynote)} 日迹</button>
         </div>
         <div style="flex:1"></div>
         ${showImmersive ? `<button class="immersive-btn ${state.immersive?'on':''}" data-act="toggle-immersive" title="${immersiveTitle}" aria-label="${immersiveTitle}">${immersiveIcon}</button>` : ''}
@@ -1081,6 +1085,7 @@ function renderTabInterface() {
   const emojiSlots = [
     { key: 'emoji_thought', label: '想法' },
     { key: 'emoji_feeling', label: '感受' },
+    { key: 'emoji_daynote', label: '日迹' },
     { key: 'emoji_todo_4',  label: '紧急' },
     { key: 'emoji_todo_3',  label: '重要' },
     { key: 'emoji_todo_2',  label: '一般' },
@@ -1765,7 +1770,7 @@ async function resetSection(section) {
     interface:  ['show_date','show_time','show_weekday','show_seconds','show_lunar','hour_format',
                  'show_datetime','show_thought_time','show_thought_content','show_priority_emoji',
                  'hide_todo_emoji','dim_past_thoughts','cal_days_per_page','cal_item_click_mode',
-                 'emoji_thought','emoji_feeling','emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1'],
+                 'emoji_thought','emoji_feeling','emoji_daynote','emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1'],
   };
   const keys = sectionKeys[section];
   if (!keys) return;
@@ -1787,7 +1792,7 @@ async function restoreAllStyle() {
   if (!confirm('确定要还原所有外观样式吗？数据不会丢失。')) return;
   const updates = {};
   ['theme','font_size','font_weight','font_family','card_size','card_opacity','card_radius','card_aspect','card_aspect_mobile','card_split','card_split_mobile',
-   'ui_style','color_scheme','emoji_thought','emoji_feeling',
+   'ui_style','color_scheme','emoji_thought','emoji_feeling','emoji_daynote',
    'emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1',
    'active_wp_desktop_light','active_wp_desktop_dark',
    'active_wp_mobile_light','active_wp_mobile_dark'].forEach(k => {
@@ -2461,6 +2466,30 @@ function setupWysiEditor(el, initialText = '') {
         spellcheck: 'false',
         autocapitalize: 'off',
         autocorrect: 'off',
+      },
+      handleKeyDown: (_view, event) => {
+        // Fix: Enter on the title line (first node) should create a new
+        // paragraph below and move the cursor there.
+        if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
+          const { $from } = editor.state.selection;
+          if ($from.depth >= 1) {
+            const topIdx = $from.index(0);  // index of the top-level block
+            if (topIdx === 0) {
+              // Cursor is inside the first top-level block (title)
+              const atEnd = $from.parentOffset >= $from.parent.content.size;
+              if (atEnd && editor.state.doc.childCount <= 1) {
+                // Only block — Enter would do nothing useful; force a new paragraph
+                event.preventDefault();
+                editor.chain().focus().insertContentAt(
+                  $from.end(1) + 1,
+                  { type: 'paragraph' }
+                ).focus('end').run();
+                return true;
+              }
+            }
+          }
+        }
+        return false;
       },
     },
     onSelectionUpdate: () => {
@@ -3310,7 +3339,7 @@ function renderEditModal() {
     const fullText = data.title ? (data.title + '\n' + (data.content || '')) : (data.content || '');
     card.innerHTML = `
       <div class="modal-header">
-        <div class="modal-title">编辑${data.type==='feeling'?'感受':'想法'}</div>
+        <div class="modal-title">编辑${data.type==='daynote'?'日迹':data.type==='feeling'?'感受':'想法'}</div>
         <button class="icon-btn" data-act="close-modal" title="关闭">×</button>
       </div>
       <div class="modal-body">
@@ -3319,6 +3348,7 @@ function renderEditModal() {
           <div class="type-toggle" style="display:inline-flex">
             <button class="${data.type==='thought'?'active':''}" data-act="edit-type" data-type="thought">${utils.esc(state.settings.emoji_thought)} 想法</button>
             <button class="${data.type==='feeling'?'active':''}" data-act="edit-type" data-type="feeling">${utils.esc(state.settings.emoji_feeling)} 感受</button>
+            <button class="${data.type==='daynote'?'active':''}" data-act="edit-type" data-type="daynote">${utils.esc(state.settings.emoji_daynote)} 日迹</button>
           </div>
         </div>
         <div style="flex:1;min-height:240px;display:flex;flex-direction:column">

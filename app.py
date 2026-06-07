@@ -108,6 +108,7 @@ def init_db():
         'active_wp_mobile_dark': '',
         'emoji_thought': '🧠',
         'emoji_feeling': '👀',
+        'emoji_daynote': '🪶',
         'emoji_todo_4': '🌕',
         'emoji_todo_3': '🌖',
         'emoji_todo_2': '🌗',
