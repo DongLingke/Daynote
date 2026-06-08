@@ -108,7 +108,7 @@ const state = {
   settings: { ...DEFAULT_SETTINGS },
   wallpapers: [],
   addPrio: 1,
-  addType: 'thought',
+  addType: 'daynote',
   editing: null,    // { kind:'todo'|'thought', data:{...} } when edit modal is open
   settingsTab: 'appearance',
   showCompleted: true,
