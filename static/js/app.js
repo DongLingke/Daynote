@@ -526,9 +526,15 @@ function render() {
     <div class="glass-layer"></div>
     <div class="card-content">
       <div class="card-header">
-        <button class="mode-toggle-btn" data-act="toggle-mode"
+        <button class="mode-switch ${state.appMode==='accounting'?'is-acct':'is-diary'}"
+                data-act="toggle-mode" role="switch"
+                aria-checked="${state.appMode==='accounting'?'true':'false'}"
                 title="${state.appMode==='accounting'?'切换到日记':'切换到记账'}"
-                aria-label="切换模式">${state.appMode==='accounting'?'💰':'📓'}</button>
+                aria-label="切换日记 / 记账模式">
+          <span class="mode-switch-thumb"></span>
+          <span class="mode-switch-opt" data-mode="diary">📓</span>
+          <span class="mode-switch-opt" data-mode="acct">💰</span>
+        </button>
         <div class="header-datetime" id="header-datetime"></div>
         <div class="header-title">${state.view!=='main' ? titles[state.view] : ''}</div>
         <div class="header-nav">

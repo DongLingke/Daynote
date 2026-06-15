@@ -2786,22 +2786,49 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 /* ═══════════════════════════════════════════════════════════════════
    Accounting mode (记账模式)
    ═══════════════════════════════════════════════════════════════════ */
-.mode-toggle-btn {
+/* Two-in-one sliding switch: 📓 日记 ⇄ 💰 记账 */
+.mode-switch {
   flex-shrink: 0;
-  width: 30px; height: 30px;
-  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   margin-right: 8px;
-  padding: 0;
+  padding: 2px;
   border: 1px solid var(--item-border);
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   background: var(--item-glass);
-  font-size: 15px;
   cursor: pointer;
-  transition: background 0.15s, transform 0.12s;
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
 }
-.mode-toggle-btn:hover { background: var(--item-glass-hover); }
-.mode-toggle-btn:active { transform: scale(0.92); }
+.mode-switch:hover { background: var(--item-glass-hover); }
+.mode-switch:active { transform: scale(0.97); }
+.mode-switch-opt {
+  position: relative;
+  z-index: 1;
+  width: 28px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  opacity: 0.4;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;   /* clicks fall through to the container's data-act */
+}
+.mode-switch.is-diary .mode-switch-opt[data-mode="diary"],
+.mode-switch.is-acct  .mode-switch-opt[data-mode="acct"] {
+  opacity: 1;
+  transform: scale(1.08);
+}
+.mode-switch-thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 28px; height: 22px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.mode-switch.is-acct .mode-switch-thumb { transform: translateX(28px); }
 
 /* ── Layout: desktop two-column / mobile stacked ── */
 .acct-desktop {
