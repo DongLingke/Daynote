@@ -3043,38 +3043,85 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .acct-cal-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .acct-cal-item-amt { flex-shrink: 0; font-size: 0.78rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
-/* ── Category editor (settings) ── */
-.cat-edit-wrap { display: flex; flex-direction: column; gap: 10px; }
-.cat-edit-row {
+/* ── Category editor (inline, emoji-aware) ── */
+.ce-c1 {
   border: 1px solid var(--item-border); border-radius: var(--radius-sm);
-  padding: 8px 10px; background: var(--item-glass);
+  padding: 8px 10px; background: var(--item-glass); margin-bottom: 10px;
 }
-.cat-edit-c1 { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.cat-edit-c1-name { font-size: 0.86rem; font-weight: 600; color: var(--text-primary); }
-.cat-edit-del {
-  border: none; background: transparent; color: var(--danger, #e5484d);
-  cursor: pointer; font-size: 1rem; line-height: 1; padding: 2px 5px;
-  border-radius: 5px;
+.ce-c1-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.ce-c2-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ce-c2, .ce-inc, .ce-add-inline {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px 4px 2px 4px; border-radius: 14px;
+  background: var(--item-glass-hover);
 }
-.cat-edit-del:hover { background: var(--item-glass-hover); }
-.cat-edit-c2-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.cat-edit-chip {
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 3px 4px 3px 10px; border-radius: 14px;
-  background: var(--item-glass-hover); color: var(--text-secondary);
-  font-size: 0.78rem;
+.ce-add-inline { background: transparent; gap: 4px; }
+.ce-add-c1 { gap: 6px; }
+
+/* Emoji slot button */
+.ce-slot {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--item-border); border-radius: 7px;
+  background: var(--card-bg, transparent); cursor: pointer;
+  font-size: 14px; line-height: 1; padding: 0;
 }
-.cat-edit-chip button {
+.ce-slot.empty { border-style: dashed; }
+.ce-slot-plus { color: var(--text-tertiary); font-size: 14px; }
+.ce-slot:hover { border-color: var(--accent); }
+
+/* Editable name fields */
+.ce-name {
+  flex: 1; min-width: 80px;
+  border: 1px solid transparent; border-radius: 6px;
+  background: transparent; color: var(--text-primary);
+  font-size: 0.86rem; font-weight: 600; padding: 4px 6px;
+  font-family: inherit;
+}
+.ce-name:hover { background: var(--item-glass-hover); }
+.ce-name:focus { outline: none; border-color: var(--accent); background: var(--card-bg, var(--item-glass-hover)); }
+.ce-name-sm {
+  flex: 0 1 auto; min-width: 44px; width: 5em;
+  font-size: 0.78rem; font-weight: 400; padding: 3px 4px;
+  color: var(--text-secondary);
+}
+
+/* Delete × */
+.ce-del {
+  flex-shrink: 0;
   border: none; background: transparent; color: var(--text-tertiary);
-  cursor: pointer; font-size: 0.9rem; line-height: 1; padding: 0 3px;
+  cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 2px 5px; border-radius: 5px;
 }
-.cat-edit-chip button:hover { color: var(--danger, #e5484d); }
-.cat-edit-add-c2 {
+.ce-del:hover { color: var(--danger, #e5484d); background: var(--item-glass-hover); }
+
+/* Add buttons */
+.ce-add-c2 {
   padding: 4px 10px; border-radius: 14px;
   border: 1px dashed var(--item-border); background: transparent;
   color: var(--text-tertiary); font-size: 0.76rem; cursor: pointer;
 }
-.cat-edit-add-c2:hover { color: var(--accent); border-color: var(--accent); }
+.ce-add-c2:hover { color: var(--accent); border-color: var(--accent); }
+.ce-mini {
+  border: none; border-radius: 6px; cursor: pointer;
+  font-size: 0.74rem; padding: 4px 8px; background: var(--item-glass-hover); color: var(--text-secondary);
+}
+.ce-mini.ok { background: var(--accent); color: #fff; }
+
+/* Inline emoji grid */
+.ce-emoji-grid {
+  margin: 6px 0 2px; padding: 8px;
+  border: 1px solid var(--item-border); border-radius: var(--radius-sm);
+  background: var(--card-bg, var(--item-glass));
+}
+.ce-emoji-label { font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 6px; }
+.ce-emoji-opts { display: flex; flex-wrap: wrap; gap: 3px; }
+.ce-emoji-opt {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; border-radius: 6px; cursor: pointer; font-size: 16px; padding: 0;
+}
+.ce-emoji-opt:hover { background: var(--item-glass-hover); }
+.ce-emoji-none { font-size: 0.72rem; color: var(--text-tertiary); border: 1px dashed var(--item-border); }
 
 @media (max-width: 768px) {
   .acct-desktop { display: none; }

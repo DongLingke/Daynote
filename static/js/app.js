@@ -496,14 +496,34 @@ async function refreshAccounting() {
   state.accounting.specialItems = specialItems;
 }
 
-/* Parsed category config from settings (with safe fallbacks). */
+/* Parsed category config from settings, normalized so every category (一级
+   and 二级) carries an optional emoji icon. Migrates the old formats:
+     expense: {cat1: [sub, ...]}            → {cat1: {icon, subs:[{name,icon}]}}
+     income:  [name, ...]                   → [{name, icon}]                      */
 function expenseCats() {
-  try { return JSON.parse(state.settings.expense_categories || '{}'); } catch { return {}; }
+  let raw;
+  try { raw = JSON.parse(state.settings.expense_categories || '{}'); } catch { raw = {}; }
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (Array.isArray(v)) {
+      out[k] = { icon: '', subs: v.map(s => typeof s === 'string' ? { name: s, icon: '' } : { name: s.name || '', icon: s.icon || '' }) };
+    } else if (v && typeof v === 'object') {
+      out[k] = { icon: v.icon || '', subs: (v.subs || []).map(s => typeof s === 'string' ? { name: s, icon: '' } : { name: s.name || '', icon: s.icon || '' }) };
+    } else {
+      out[k] = { icon: '', subs: [] };
+    }
+  }
+  return out;
 }
 function incomeCats() {
-  try { return JSON.parse(state.settings.income_categories || '[]'); } catch { return []; }
+  let raw;
+  try { raw = JSON.parse(state.settings.income_categories || '[]'); } catch { raw = []; }
+  return (Array.isArray(raw) ? raw : []).map(s => typeof s === 'string' ? { name: s, icon: '' } : { name: s.name || '', icon: s.icon || '' });
 }
 function currencySym() { return state.settings.currency_symbol || '¥'; }
+
+/* Look up a category's emoji for display (empty string if none). */
+function cat1Icon(name) { return (expenseCats()[name] || {}).icon || ''; }
 
 /* Today as zero-padded ISO 'YYYY-MM-DD' (matches the backend's date format;
    utils.dateKey is NOT padded so it can't be used for date inputs / the API). */
@@ -922,7 +942,7 @@ function renderExpenseList(expenses) {
         </div>
         ${groups[date].map(e => `
           <div class="expense-item" data-act="acct-edit-expense" data-id="${e.id}">
-            <div class="expense-cat-badge">${utils.esc(e.cat1 || '其他')}</div>
+            <div class="expense-cat-badge">${(()=>{ const ic=cat1Icon(e.cat1); return ic ? utils.esc(ic)+' ' : ''; })()}${utils.esc(e.cat1 || '其他')}</div>
             <div class="expense-info">
               <div class="expense-title">${utils.esc(e.info || e.cat2 || e.cat1 || '消费')}</div>
               <div class="expense-sub">${utils.esc([e.cat1, e.cat2].filter(Boolean).join(' · '))}</div>
@@ -1258,24 +1278,7 @@ function renderSettingsTab(tab) {
    special items management. */
 function renderTabAccounting() {
   const s = state.settings;
-  const cats = expenseCats();
-  const incs = incomeCats();
   const items = state.accounting.specialItems;
-
-  const cat1Rows = Object.keys(cats).map(c1 => `
-    <div class="cat-edit-row">
-      <div class="cat-edit-c1">
-        <span class="cat-edit-c1-name">${utils.esc(c1)}</span>
-        <button class="cat-edit-del" data-act="acct-del-cat1" data-c1="${utils.esc(c1)}" title="删除一级分类">×</button>
-      </div>
-      <div class="cat-edit-c2-list">
-        ${(cats[c1] || []).map(c2 => `
-          <span class="cat-edit-chip">${utils.esc(c2)}
-            <button data-act="acct-del-cat2" data-c1="${utils.esc(c1)}" data-c2="${utils.esc(c2)}" title="删除">×</button>
-          </span>`).join('')}
-        <button class="cat-edit-add-c2" data-act="acct-add-cat2" data-c1="${utils.esc(c1)}">+ 二级</button>
-      </div>
-    </div>`).join('');
 
   return `
     <div class="settings-section-title">记账设置</div>
@@ -1301,20 +1304,7 @@ function renderTabAccounting() {
       </div>
     </div>
 
-    <div class="settings-section-title" style="margin-top:18px">消费分类</div>
-    <div class="settings-group">
-      <div class="cat-edit-wrap">${cat1Rows || '<div class="empty-state" style="padding:10px">还没有分类</div>'}</div>
-      <button class="glass-btn" style="margin-top:8px" data-act="acct-add-cat1">+ 添加一级分类</button>
-    </div>
-
-    <div class="settings-section-title" style="margin-top:18px">收入分类</div>
-    <div class="settings-group">
-      <div class="cat-edit-c2-list">
-        ${incs.map(c => `<span class="cat-edit-chip">${utils.esc(c)}
-          <button data-act="acct-del-income-cat" data-c="${utils.esc(c)}" title="删除">×</button></span>`).join('')}
-        <button class="cat-edit-add-c2" data-act="acct-add-income-cat">+ 收入分类</button>
-      </div>
-    </div>
+    <div id="cat-editor">${catEditorInner()}</div>
 
     <div class="settings-section-title" style="margin-top:18px">特殊款项</div>
     <div class="settings-group">
@@ -2324,12 +2314,7 @@ function bindGlobalEvents() {
           render();
         }
         break;
-      case 'acct-add-cat1': await acctAddCat1(); break;
-      case 'acct-del-cat1': await acctDelCat1(el.dataset.c1); break;
-      case 'acct-add-cat2': await acctAddCat2(el.dataset.c1); break;
-      case 'acct-del-cat2': await acctDelCat2(el.dataset.c1, el.dataset.c2); break;
-      case 'acct-add-income-cat': await acctAddIncomeCat(); break;
-      case 'acct-del-income-cat': await acctDelIncomeCat(el.dataset.c); break;
+      // category editor (ce-*) handled by its own delegated handler (bindCatEditor)
       case 'toggle-add-thought':
         state.addingThought = !state.addingThought;
         render();
@@ -2589,6 +2574,14 @@ function bindViewEvents() {
       if (state.appMode === 'accounting') render();
     });
   }
+
+  // Category editor — bind its self-contained handlers once per element.
+  const catHost = document.getElementById('cat-editor');
+  if (catHost && !catHost.dataset.bound) {
+    catHost.dataset.bound = '1';
+    _catUI = { addC1: false, addC2: null, addInc: false, emojiFor: null, pend: {} };
+    bindCatEditor(catHost);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2721,58 +2714,265 @@ async function toggleSpecialItem(id) {
   render();
 }
 
-/* ── Category editors (persist JSON to settings) ── */
-async function saveExpenseCats(cats) {
+/* ═══════════════════════════════════════════════════════════════════
+   Category editor — inline, no prompts, no full-card re-render.
+   Lives in #cat-editor and refreshes only its own container so adding /
+   editing categories never flashes the settings card. Every category
+   (一级 / 二级 / 收入) carries an optional emoji icon.
+   ═══════════════════════════════════════════════════════════════════ */
+let _catUI = { addC1: false, addC2: null, addInc: false, emojiFor: null, pend: {} };
+
+/* Persist without touching the rest of the card. */
+async function persistExpenseCats(cats) {
   const json = JSON.stringify(cats);
-  await setSetting('expense_categories', json);
   state.settings.expense_categories = json;
-  render();
+  await api.put('/settings', { expense_categories: json });
 }
-async function saveIncomeCats(list) {
+async function persistIncomeCats(list) {
   const json = JSON.stringify(list);
-  await setSetting('income_categories', json);
   state.settings.income_categories = json;
-  render();
+  await api.put('/settings', { income_categories: json });
 }
-async function acctAddCat1() {
-  const name = (prompt('一级分类名称') || '').trim();
-  if (!name) return;
+/* Rename an object key while preserving insertion order. */
+function renameKey(obj, oldK, newK) {
+  const out = {};
+  for (const k of Object.keys(obj)) out[k === oldK ? newK : k] = obj[k];
+  return out;
+}
+
+/* Emoji grid panel for a target key (shown inline when active). */
+function ceEmojiGrid(targetKey, label) {
+  if (_catUI.emojiFor !== targetKey) return '';
+  return `<div class="ce-emoji-grid">
+    <div class="ce-emoji-label">${utils.esc(label)} 的图标</div>
+    <div class="ce-emoji-opts">
+      <button class="ce-emoji-opt ce-emoji-none" data-act="ce-clear" data-target="${utils.esc(targetKey)}" title="无图标">无</button>
+      ${CFG.EMOJI_PICKER.map(e => `<button class="ce-emoji-opt" data-act="ce-pick" data-target="${utils.esc(targetKey)}" data-e="${utils.esc(e)}">${e}</button>`).join('')}
+    </div>
+  </div>`;
+}
+/* A clickable emoji slot (shows the icon, or a + placeholder when empty). */
+function ceSlot(targetKey, icon) {
+  return `<button class="ce-slot ${icon ? '' : 'empty'}" data-act="ce-emoji" data-target="${utils.esc(targetKey)}" title="设置图标">${icon ? utils.esc(icon) : '<span class="ce-slot-plus">+</span>'}</button>`;
+}
+
+function catEditorInner() {
   const cats = expenseCats();
-  if (cats[name]) { alert('该分类已存在'); return; }
-  cats[name] = [];
-  await saveExpenseCats(cats);
+  const incs = incomeCats();
+
+  const c1Blocks = Object.keys(cats).map(c1 => {
+    const sub = cats[c1].subs || [];
+    return `<div class="ce-c1">
+      <div class="ce-c1-head">
+        ${ceSlot('c1:' + c1, cats[c1].icon)}
+        <input class="ce-name" data-edit="c1" data-c1="${utils.esc(c1)}" value="${utils.esc(c1)}" spellcheck="false" autocapitalize="off">
+        <button class="ce-del" data-act="ce-del-c1" data-c1="${utils.esc(c1)}" title="删除分类">×</button>
+      </div>
+      ${ceEmojiGrid('c1:' + c1, c1)}
+      <div class="ce-c2-wrap">
+        ${sub.map(s => `
+          <span class="ce-c2">
+            ${ceSlot('c2:' + c1 + ':' + s.name, s.icon)}
+            <input class="ce-name ce-name-sm" data-edit="c2" data-c1="${utils.esc(c1)}" data-c2="${utils.esc(s.name)}" value="${utils.esc(s.name)}" spellcheck="false" autocapitalize="off">
+            <button class="ce-del" data-act="ce-del-c2" data-c1="${utils.esc(c1)}" data-c2="${utils.esc(s.name)}" title="删除">×</button>
+          </span>`).join('')}
+        ${_catUI.addC2 === c1
+          ? `<span class="ce-add-inline">
+               ${ceSlot('nc2:' + c1, _catUI.pend['nc2:' + c1] || '')}
+               <input class="ce-name ce-name-sm" id="ce-new-c2" placeholder="二级分类名" spellcheck="false" autocapitalize="off">
+               <button class="ce-mini ok" data-act="ce-add-c2-ok" data-c1="${utils.esc(c1)}">添加</button>
+               <button class="ce-mini" data-act="ce-add-c2-cancel">取消</button>
+             </span>`
+          : `<button class="ce-add-c2" data-act="ce-add-c2" data-c1="${utils.esc(c1)}">+ 二级</button>`}
+      </div>
+      ${sub.map(s => ceEmojiGrid('c2:' + c1 + ':' + s.name, s.name)).join('')}
+      ${ceEmojiGrid('nc2:' + c1, '新二级分类')}
+    </div>`;
+  }).join('');
+
+  const addC1Row = _catUI.addC1
+    ? `<div class="ce-add-inline ce-add-c1">
+         ${ceSlot('nc1', _catUI.pend['nc1'] || '')}
+         <input class="ce-name" id="ce-new-c1" placeholder="一级分类名" spellcheck="false" autocapitalize="off">
+         <button class="ce-mini ok" data-act="ce-add-c1-ok">添加</button>
+         <button class="ce-mini" data-act="ce-add-c1-cancel">取消</button>
+       </div>
+       ${ceEmojiGrid('nc1', '新一级分类')}`
+    : `<button class="glass-btn ce-add-btn" data-act="ce-add-c1">+ 添加一级分类</button>`;
+
+  const incChips = incs.map(it => `
+    <span class="ce-c2 ce-inc">
+      ${ceSlot('inc:' + it.name, it.icon)}
+      <input class="ce-name ce-name-sm" data-edit="inc" data-name="${utils.esc(it.name)}" value="${utils.esc(it.name)}" spellcheck="false" autocapitalize="off">
+      <button class="ce-del" data-act="ce-del-inc" data-name="${utils.esc(it.name)}" title="删除">×</button>
+    </span>`).join('');
+  const addIncRow = _catUI.addInc
+    ? `<span class="ce-add-inline">
+         ${ceSlot('ninc', _catUI.pend['ninc'] || '')}
+         <input class="ce-name ce-name-sm" id="ce-new-inc" placeholder="收入分类名" spellcheck="false" autocapitalize="off">
+         <button class="ce-mini ok" data-act="ce-add-inc-ok">添加</button>
+         <button class="ce-mini" data-act="ce-add-inc-cancel">取消</button>
+       </span>`
+    : `<button class="ce-add-c2" data-act="ce-add-inc">+ 收入分类</button>`;
+
+  return `
+    <div class="settings-section-title" style="margin-top:18px">消费分类</div>
+    <div class="settings-group">
+      ${c1Blocks || '<div class="empty-state" style="padding:10px">还没有分类</div>'}
+      <div style="margin-top:8px">${addC1Row}</div>
+    </div>
+
+    <div class="settings-section-title" style="margin-top:18px">收入分类</div>
+    <div class="settings-group">
+      <div class="ce-c2-wrap">${incChips}${addIncRow}</div>
+      ${incs.map(it => ceEmojiGrid('inc:' + it.name, it.name)).join('')}
+      ${ceEmojiGrid('ninc', '新收入分类')}
+    </div>
+  `;
 }
-async function acctDelCat1(c1) {
-  if (!confirm(`删除一级分类「${c1}」及其所有二级分类？`)) return;
-  const cats = expenseCats();
-  delete cats[c1];
-  await saveExpenseCats(cats);
+
+/* Refresh ONLY the editor container (never the whole card). */
+function renderCatEditor() {
+  const host = document.getElementById('cat-editor');
+  if (!host) return;
+  host.innerHTML = catEditorInner();
+  // Focus whichever inline add input is open.
+  const focusId = _catUI.addC1 ? 'ce-new-c1' : _catUI.addC2 ? 'ce-new-c2' : _catUI.addInc ? 'ce-new-inc' : null;
+  if (focusId) setTimeout(() => document.getElementById(focusId)?.focus(), 0);
 }
-async function acctAddCat2(c1) {
-  const name = (prompt(`在「${c1}」下添加二级分类`) || '').trim();
-  if (!name) return;
-  const cats = expenseCats();
-  if (!cats[c1]) cats[c1] = [];
-  if (cats[c1].includes(name)) { alert('已存在'); return; }
-  cats[c1].push(name);
-  await saveExpenseCats(cats);
+
+/* Apply an emoji to a target key (existing category → persist; pending
+   add-row → stash until the name is confirmed). */
+async function ceSetEmoji(targetKey, emoji) {
+  _catUI.emojiFor = null;
+  if (targetKey === 'nc1' || targetKey.startsWith('nc2:') || targetKey === 'ninc') {
+    _catUI.pend[targetKey] = emoji;
+    renderCatEditor();
+    return;
+  }
+  if (targetKey.startsWith('c1:')) {
+    const c1 = targetKey.slice(3);
+    const cats = expenseCats();
+    if (cats[c1]) { cats[c1].icon = emoji; await persistExpenseCats(cats); }
+  } else if (targetKey.startsWith('c2:')) {
+    const [, c1, c2] = targetKey.split(':');
+    const cats = expenseCats();
+    const s = (cats[c1]?.subs || []).find(x => x.name === c2);
+    if (s) { s.icon = emoji; await persistExpenseCats(cats); }
+  } else if (targetKey.startsWith('inc:')) {
+    const name = targetKey.slice(4);
+    const list = incomeCats();
+    const it = list.find(x => x.name === name);
+    if (it) { it.icon = emoji; await persistIncomeCats(list); }
+  }
+  renderCatEditor();
 }
-async function acctDelCat2(c1, c2) {
-  const cats = expenseCats();
-  if (cats[c1]) cats[c1] = cats[c1].filter(x => x !== c2);
-  await saveExpenseCats(cats);
+
+/* Commit an inline rename (silently reverts on empty / duplicate). */
+async function ceRename(input) {
+  const edit = input.dataset.edit;
+  const val = input.value.trim();
+  if (edit === 'c1') {
+    const old = input.dataset.c1;
+    if (!val || val === old) { renderCatEditor(); return; }
+    const cats = expenseCats();
+    if (cats[val]) { renderCatEditor(); return; }
+    await persistExpenseCats(renameKey(cats, old, val));
+  } else if (edit === 'c2') {
+    const c1 = input.dataset.c1, old = input.dataset.c2;
+    if (!val || val === old) { renderCatEditor(); return; }
+    const cats = expenseCats();
+    const subs = cats[c1]?.subs || [];
+    if (subs.some(s => s.name === val)) { renderCatEditor(); return; }
+    const s = subs.find(x => x.name === old);
+    if (s) { s.name = val; await persistExpenseCats(cats); }
+  } else if (edit === 'inc') {
+    const old = input.dataset.name;
+    if (!val || val === old) { renderCatEditor(); return; }
+    const list = incomeCats();
+    if (list.some(x => x.name === val)) { renderCatEditor(); return; }
+    const it = list.find(x => x.name === old);
+    if (it) { it.name = val; await persistIncomeCats(list); }
+  }
+  renderCatEditor();
 }
-async function acctAddIncomeCat() {
-  const name = (prompt('收入分类名称') || '').trim();
-  if (!name) return;
-  const list = incomeCats();
-  if (list.includes(name)) { alert('已存在'); return; }
-  list.push(name);
-  await saveIncomeCats(list);
-}
-async function acctDelIncomeCat(c) {
-  const list = incomeCats().filter(x => x !== c);
-  await saveIncomeCats(list);
+
+/* Delegated handler for the editor container — bound once per element. */
+function bindCatEditor(host) {
+  host.addEventListener('click', async (e) => {
+    const el = e.target.closest('[data-act]');
+    if (!el || !host.contains(el)) return;
+    const act = el.dataset.act;
+    if (!act.startsWith('ce-')) return;
+    e.stopPropagation();
+    e.preventDefault();
+    switch (act) {
+      case 'ce-emoji':
+        _catUI.emojiFor = _catUI.emojiFor === el.dataset.target ? null : el.dataset.target;
+        renderCatEditor(); break;
+      case 'ce-pick':  await ceSetEmoji(el.dataset.target, el.dataset.e); break;
+      case 'ce-clear': await ceSetEmoji(el.dataset.target, ''); break;
+      case 'ce-add-c1':       _catUI.addC1 = true; renderCatEditor(); break;
+      case 'ce-add-c1-cancel': _catUI.addC1 = false; _catUI.pend['nc1'] = ''; renderCatEditor(); break;
+      case 'ce-add-c1-ok': {
+        const name = (document.getElementById('ce-new-c1')?.value || '').trim();
+        if (!name) return;
+        const cats = expenseCats();
+        if (!cats[name]) { cats[name] = { icon: _catUI.pend['nc1'] || '', subs: [] }; await persistExpenseCats(cats); }
+        _catUI.addC1 = false; _catUI.pend['nc1'] = '';
+        renderCatEditor(); break;
+      }
+      case 'ce-add-c2':        _catUI.addC2 = el.dataset.c1; renderCatEditor(); break;
+      case 'ce-add-c2-cancel': { const k = 'nc2:' + _catUI.addC2; _catUI.addC2 = null; _catUI.pend[k] = ''; renderCatEditor(); break; }
+      case 'ce-add-c2-ok': {
+        const c1 = el.dataset.c1;
+        const name = (document.getElementById('ce-new-c2')?.value || '').trim();
+        if (!name) return;
+        const cats = expenseCats();
+        const subs = cats[c1].subs;
+        if (!subs.some(s => s.name === name)) { subs.push({ name, icon: _catUI.pend['nc2:' + c1] || '' }); await persistExpenseCats(cats); }
+        _catUI.pend['nc2:' + c1] = ''; _catUI.addC2 = null;
+        renderCatEditor(); break;
+      }
+      case 'ce-del-c1': {
+        const cats = expenseCats(); delete cats[el.dataset.c1];
+        await persistExpenseCats(cats); renderCatEditor(); break;
+      }
+      case 'ce-del-c2': {
+        const cats = expenseCats(), c1 = el.dataset.c1;
+        if (cats[c1]) cats[c1].subs = cats[c1].subs.filter(s => s.name !== el.dataset.c2);
+        await persistExpenseCats(cats); renderCatEditor(); break;
+      }
+      case 'ce-add-inc':        _catUI.addInc = true; renderCatEditor(); break;
+      case 'ce-add-inc-cancel': _catUI.addInc = false; _catUI.pend['ninc'] = ''; renderCatEditor(); break;
+      case 'ce-add-inc-ok': {
+        const name = (document.getElementById('ce-new-inc')?.value || '').trim();
+        if (!name) return;
+        const list = incomeCats();
+        if (!list.some(x => x.name === name)) { list.push({ name, icon: _catUI.pend['ninc'] || '' }); await persistIncomeCats(list); }
+        _catUI.addInc = false; _catUI.pend['ninc'] = '';
+        renderCatEditor(); break;
+      }
+      case 'ce-del-inc': {
+        const list = incomeCats().filter(x => x.name !== el.dataset.name);
+        await persistIncomeCats(list); renderCatEditor(); break;
+      }
+    }
+  });
+  // Enter confirms an add input or commits a rename.
+  host.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const t = e.target;
+    if (t.id === 'ce-new-c1') { e.preventDefault(); host.querySelector('[data-act="ce-add-c1-ok"]')?.click(); }
+    else if (t.id === 'ce-new-c2') { e.preventDefault(); host.querySelector('[data-act="ce-add-c2-ok"]')?.click(); }
+    else if (t.id === 'ce-new-inc') { e.preventDefault(); host.querySelector('[data-act="ce-add-inc-ok"]')?.click(); }
+    else if (t.classList.contains('ce-name') && t.dataset.edit) { e.preventDefault(); t.blur(); }
+  });
+  // Commit rename when an edit field loses focus (only fires if changed).
+  host.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.classList.contains('ce-name') && t.dataset.edit) ceRename(t);
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -4004,7 +4204,8 @@ function renderExpenseModal() {
   if (!f) { card.innerHTML = ''; return; }
   const cats = expenseCats();
   const cat1Keys = Object.keys(cats);
-  const cat2List = cats[f.cat1] || [];
+  const cat2List = (cats[f.cat1] || {}).subs || [];
+  const chipLabel = (icon, name) => `${icon ? utils.esc(icon) + ' ' : ''}${utils.esc(name)}`;
   card.innerHTML = `
     <div class="modal-header">
       <div class="modal-title">${f.id ? '编辑消费' : '记一笔消费'}</div>
@@ -4019,14 +4220,14 @@ function renderExpenseModal() {
       <div>
         <div class="modal-field-label">一级分类</div>
         <div class="cat-chip-row">
-          ${cat1Keys.map(c => `<button class="cat-chip ${f.cat1===c?'active':''}" data-act="exp-set-cat1" data-c="${utils.esc(c)}">${utils.esc(c)}</button>`).join('')}
+          ${cat1Keys.map(c => `<button class="cat-chip ${f.cat1===c?'active':''}" data-act="exp-set-cat1" data-c="${utils.esc(c)}">${chipLabel(cats[c].icon, c)}</button>`).join('')}
         </div>
       </div>
       ${cat2List.length ? `
       <div>
         <div class="modal-field-label">二级分类</div>
         <div class="cat-chip-row">
-          ${cat2List.map(c => `<button class="cat-chip sub ${f.cat2===c?'active':''}" data-act="exp-set-cat2" data-c="${utils.esc(c)}">${utils.esc(c)}</button>`).join('')}
+          ${cat2List.map(c => `<button class="cat-chip sub ${f.cat2===c.name?'active':''}" data-act="exp-set-cat2" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('')}
         </div>
       </div>` : ''}
       <div>
