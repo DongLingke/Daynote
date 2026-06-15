@@ -1,8 +1,11 @@
 import os
+import json
 import socket
 import sqlite3
+import threading
+import time
 import webbrowser
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from flask import Flask, jsonify, request, render_template, send_from_directory, abort
 from werkzeug.utils import secure_filename
 
@@ -80,6 +83,45 @@ def init_db():
             name TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime'))
         );
+        -- ── Accounting mode (记账模式) ──────────────────────────────
+        -- Table A: 消费记录
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            info TEXT DEFAULT '',
+            cat1 TEXT DEFAULT '',
+            cat2 TEXT DEFAULT '',
+            amount REAL NOT NULL DEFAULT 0,
+            date TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+        -- Table B: 收入记录
+        CREATE TABLE IF NOT EXISTS incomes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            info TEXT DEFAULT '',
+            amount REAL NOT NULL DEFAULT 0,
+            category TEXT DEFAULT '',
+            date TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+        -- Table C: 每天 0 点的个人余额快照
+        CREATE TABLE IF NOT EXISTS balance_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL UNIQUE,
+            amount REAL NOT NULL DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+        -- 特殊款项（贷款 / 账户余额等），勾选后计入个人余额基准
+        CREATE TABLE IF NOT EXISTS special_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            amount REAL NOT NULL DEFAULT 0,
+            kind TEXT DEFAULT 'asset',
+            checked INTEGER DEFAULT 1,
+            order_index INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+        CREATE INDEX IF NOT EXISTS idx_incomes_date ON incomes(date);
     ''')
     # Defaults captured from the live working state (2026-05-26 snapshot).
     # Fresh installs land exactly in the look the maintainer was using;
@@ -131,6 +173,23 @@ def init_db():
         'card_item_tint': '5',
         'dim_past_thoughts': 'true',
         'close_action': 'minimize',
+        # ── Accounting mode ──
+        'app_mode': 'diary',            # 'diary' | 'accounting'
+        'currency_symbol': '¥',
+        'expense_categories': json.dumps({
+            '餐饮': ['早餐', '午餐', '晚餐', '零食', '饮料', '外卖'],
+            '交通': ['地铁', '公交', '打车', '加油', '停车'],
+            '购物': ['日用', '服饰', '数码', '护肤'],
+            '居住': ['房租', '水电', '物业', '网费'],
+            '娱乐': ['电影', '游戏', '旅行', '运动'],
+            '医疗': ['药品', '门诊', '体检'],
+            '人情': ['礼物', '请客', '红包'],
+            '其他': ['其他'],
+        }, ensure_ascii=False),
+        'income_categories': json.dumps(
+            ['工资', '奖金', '兼职', '理财', '报销', '红包', '其他'],
+            ensure_ascii=False),
+        'accounting_chart_days': '15',
     }
     for k, v in defaults.items():
         c.execute('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)', (k, v))
@@ -527,6 +586,291 @@ def delete_wallpaper(wid):
 
 
 # ── Backup / Restore ──────────────────────────────────────────────────────────
+# ── Accounting mode (记账模式) ──────────────────────────────────────────────────
+#
+# Balance model (个人余额):
+#   current_balance = Σ(checked special_items, asset positive / debt negative)
+#   The displayed "current balance" is this live sum — the user maintains the
+#   special items to reflect their real accounts & loans.
+#   Daily snapshots (table C) freeze the balance at each day's 0:00. The chart
+#   reads snapshots where present, and derives missing days by walking the
+#   current balance backward through each day's net flow (income − expense):
+#       balance(D) = current_balance − Σ net(d) for d in (D, today]
+#   so the line always ends at today's current balance and steps by daily flow.
+
+def _current_balance(conn):
+    """Live personal balance = sum of checked special items (asset +, debt −)."""
+    row = conn.execute(
+        "SELECT COALESCE(SUM(CASE WHEN kind='debt' THEN -amount ELSE amount END), 0) AS b "
+        "FROM special_items WHERE checked=1"
+    ).fetchone()
+    return round(row['b'] or 0.0, 2)
+
+
+def _day_net(conn, day):
+    """Net flow on a single day = income − expense (day is 'YYYY-MM-DD')."""
+    inc = conn.execute("SELECT COALESCE(SUM(amount),0) s FROM incomes WHERE date=?", (day,)).fetchone()['s'] or 0
+    exp = conn.execute("SELECT COALESCE(SUM(amount),0) s FROM expenses WHERE date=?", (day,)).fetchone()['s'] or 0
+    return inc - exp
+
+
+def _balance_series(conn, days=15):
+    """Return [{date, amount}] oldest→newest for the last `days` days."""
+    today = date.today()
+    cur = _current_balance(conn)
+    snaps = {r['date']: r['amount'] for r in
+             conn.execute("SELECT date, amount FROM balance_snapshots").fetchall()}
+    out = []
+    # Walk from today backward, accumulating net so each earlier day subtracts it.
+    running = cur
+    for i in range(days):
+        d = (today - timedelta(days=i)).isoformat()
+        if d in snaps:
+            val = snaps[d]
+        elif i == 0:
+            val = cur
+        else:
+            val = running
+        out.append({'date': d, 'amount': round(val, 2)})
+        # Prepare value for the previous day: subtract this day's net flow.
+        running = round(val - _day_net(conn, d), 2)
+    out.reverse()
+    return out
+
+
+def _ensure_snapshot(conn, day=None):
+    """Upsert the balance snapshot for `day` (default today) = current balance."""
+    day = day or date.today().isoformat()
+    bal = _current_balance(conn)
+    conn.execute(
+        "INSERT INTO balance_snapshots (date, amount) VALUES (?, ?) "
+        "ON CONFLICT(date) DO UPDATE SET amount=excluded.amount",
+        (day, bal))
+    conn.commit()
+
+
+def _midnight_scheduler():
+    """Background thread: at each local midnight, snapshot the day's balance."""
+    while True:
+        now = datetime.now()
+        nxt = (now + timedelta(days=1)).replace(hour=0, minute=0, second=5, microsecond=0)
+        time.sleep(max(60, (nxt - now).total_seconds()))
+        try:
+            conn = get_db()
+            _ensure_snapshot(conn)
+            conn.close()
+        except Exception as e:
+            print('midnight snapshot failed:', e)
+
+
+# Start the midnight balance-snapshot scheduler (daemon dies with the app).
+# Guard against Werkzeug's reloader spawning it twice (only the reloaded
+# child sets WERKZEUG_RUN_MAIN; in production debug is off).
+if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or os.environ.get('FLASK_DEBUG', '1') == '0':
+    threading.Thread(target=_midnight_scheduler, daemon=True).start()
+
+
+# ── Expenses (table A) ──
+@app.route('/api/expenses', methods=['GET'])
+def get_expenses():
+    conn = get_db()
+    args = request.args
+    q = 'SELECT * FROM expenses'
+    params, where = [], []
+    if args.get('date'):
+        where.append('date=?'); params.append(args['date'])
+    if args.get('from'):
+        where.append('date>=?'); params.append(args['from'])
+    if args.get('to'):
+        where.append('date<=?'); params.append(args['to'])
+    if where:
+        q += ' WHERE ' + ' AND '.join(where)
+    q += ' ORDER BY date DESC, id DESC'
+    if args.get('limit'):
+        q += ' LIMIT ?'; params.append(int(args['limit']))
+    rows = conn.execute(q, params).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/expenses', methods=['POST'])
+def create_expense():
+    d = request.json
+    conn = get_db()
+    cur = conn.execute(
+        'INSERT INTO expenses (info,cat1,cat2,amount,date) VALUES (?,?,?,?,?)',
+        (d.get('info', ''), d.get('cat1', ''), d.get('cat2', ''),
+         float(d.get('amount', 0)), d.get('date') or date.today().isoformat()))
+    conn.commit()
+    _ensure_snapshot(conn)
+    row = dict(conn.execute('SELECT * FROM expenses WHERE id=?', (cur.lastrowid,)).fetchone())
+    conn.close()
+    return jsonify(row), 201
+
+
+@app.route('/api/expenses/<int:eid>', methods=['PUT'])
+def update_expense(eid):
+    d = request.json
+    conn = get_db()
+    allowed = {'info', 'cat1', 'cat2', 'amount', 'date'}
+    fields = [f'{k}=?' for k in d if k in allowed]
+    values = [d[k] for k in d if k in allowed] + [eid]
+    if fields:
+        conn.execute(f'UPDATE expenses SET {",".join(fields)} WHERE id=?', values)
+        conn.commit()
+        _ensure_snapshot(conn)
+    row = conn.execute('SELECT * FROM expenses WHERE id=?', (eid,)).fetchone()
+    conn.close()
+    return jsonify(dict(row)) if row else (jsonify({'error': 'not found'}), 404)
+
+
+@app.route('/api/expenses/<int:eid>', methods=['DELETE'])
+def delete_expense(eid):
+    conn = get_db()
+    conn.execute('DELETE FROM expenses WHERE id=?', (eid,))
+    conn.commit()
+    _ensure_snapshot(conn)
+    conn.close()
+    return jsonify({'ok': True})
+
+
+# ── Incomes (table B) ──
+@app.route('/api/incomes', methods=['GET'])
+def get_incomes():
+    conn = get_db()
+    args = request.args
+    q = 'SELECT * FROM incomes'
+    params, where = [], []
+    if args.get('date'):
+        where.append('date=?'); params.append(args['date'])
+    if args.get('from'):
+        where.append('date>=?'); params.append(args['from'])
+    if args.get('to'):
+        where.append('date<=?'); params.append(args['to'])
+    if where:
+        q += ' WHERE ' + ' AND '.join(where)
+    q += ' ORDER BY date DESC, id DESC'
+    if args.get('limit'):
+        q += ' LIMIT ?'; params.append(int(args['limit']))
+    rows = conn.execute(q, params).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/incomes', methods=['POST'])
+def create_income():
+    d = request.json
+    conn = get_db()
+    cur = conn.execute(
+        'INSERT INTO incomes (info,amount,category,date) VALUES (?,?,?,?)',
+        (d.get('info', ''), float(d.get('amount', 0)), d.get('category', ''),
+         d.get('date') or date.today().isoformat()))
+    conn.commit()
+    _ensure_snapshot(conn)
+    row = dict(conn.execute('SELECT * FROM incomes WHERE id=?', (cur.lastrowid,)).fetchone())
+    conn.close()
+    return jsonify(row), 201
+
+
+@app.route('/api/incomes/<int:iid>', methods=['PUT'])
+def update_income(iid):
+    d = request.json
+    conn = get_db()
+    allowed = {'info', 'amount', 'category', 'date'}
+    fields = [f'{k}=?' for k in d if k in allowed]
+    values = [d[k] for k in d if k in allowed] + [iid]
+    if fields:
+        conn.execute(f'UPDATE incomes SET {",".join(fields)} WHERE id=?', values)
+        conn.commit()
+        _ensure_snapshot(conn)
+    row = conn.execute('SELECT * FROM incomes WHERE id=?', (iid,)).fetchone()
+    conn.close()
+    return jsonify(dict(row)) if row else (jsonify({'error': 'not found'}), 404)
+
+
+@app.route('/api/incomes/<int:iid>', methods=['DELETE'])
+def delete_income(iid):
+    conn = get_db()
+    conn.execute('DELETE FROM incomes WHERE id=?', (iid,))
+    conn.commit()
+    _ensure_snapshot(conn)
+    conn.close()
+    return jsonify({'ok': True})
+
+
+# ── Special items (特殊款项) ──
+@app.route('/api/special-items', methods=['GET'])
+def get_special_items():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM special_items ORDER BY order_index ASC, id ASC').fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/special-items', methods=['POST'])
+def create_special_item():
+    d = request.json
+    conn = get_db()
+    n = conn.execute('SELECT COALESCE(MAX(order_index)+1,0) AS n FROM special_items').fetchone()['n']
+    cur = conn.execute(
+        'INSERT INTO special_items (name,amount,kind,checked,order_index) VALUES (?,?,?,?,?)',
+        (d.get('name', ''), float(d.get('amount', 0)), d.get('kind', 'asset'),
+         1 if d.get('checked', True) else 0, n))
+    conn.commit()
+    _ensure_snapshot(conn)
+    row = dict(conn.execute('SELECT * FROM special_items WHERE id=?', (cur.lastrowid,)).fetchone())
+    conn.close()
+    return jsonify(row), 201
+
+
+@app.route('/api/special-items/<int:sid>', methods=['PUT'])
+def update_special_item(sid):
+    d = request.json
+    conn = get_db()
+    allowed = {'name', 'amount', 'kind', 'checked', 'order_index'}
+    fields = [f'{k}=?' for k in d if k in allowed]
+    values = [(1 if d[k] else 0) if k == 'checked' else d[k] for k in d if k in allowed] + [sid]
+    if fields:
+        conn.execute(f'UPDATE special_items SET {",".join(fields)} WHERE id=?', values)
+        conn.commit()
+        _ensure_snapshot(conn)
+    row = conn.execute('SELECT * FROM special_items WHERE id=?', (sid,)).fetchone()
+    conn.close()
+    return jsonify(dict(row)) if row else (jsonify({'error': 'not found'}), 404)
+
+
+@app.route('/api/special-items/<int:sid>', methods=['DELETE'])
+def delete_special_item(sid):
+    conn = get_db()
+    conn.execute('DELETE FROM special_items WHERE id=?', (sid,))
+    conn.commit()
+    _ensure_snapshot(conn)
+    conn.close()
+    return jsonify({'ok': True})
+
+
+# ── Accounting summary (balance + chart series + today totals) ──
+@app.route('/api/accounting/summary', methods=['GET'])
+def accounting_summary():
+    conn = get_db()
+    days = int(request.args.get('days', 15))
+    _ensure_snapshot(conn)   # keep today's snapshot fresh on load
+    today = date.today().isoformat()
+    summary = {
+        'current_balance': _current_balance(conn),
+        'today_expense': conn.execute(
+            "SELECT COALESCE(SUM(amount),0) s FROM expenses WHERE date=?", (today,)).fetchone()['s'] or 0,
+        'today_income': conn.execute(
+            "SELECT COALESCE(SUM(amount),0) s FROM incomes WHERE date=?", (today,)).fetchone()['s'] or 0,
+        'month_expense': conn.execute(
+            "SELECT COALESCE(SUM(amount),0) s FROM expenses WHERE date>=?",
+            (today[:8] + '01',)).fetchone()['s'] or 0,
+        'series': _balance_series(conn, days),
+    }
+    conn.close()
+    return jsonify(summary)
+
+
 @app.route('/api/export', methods=['GET'])
 def export_data():
     """Dump all user data (todos, thoughts, settings, wallpaper metadata)
@@ -540,6 +884,10 @@ def export_data():
         'thoughts': [dict(r) for r in conn.execute('SELECT * FROM thoughts').fetchall()],
         'settings': {r['key']: r['value'] for r in conn.execute('SELECT key,value FROM settings').fetchall()},
         'wallpapers': [dict(r) for r in conn.execute('SELECT * FROM wallpapers').fetchall()],
+        'expenses': [dict(r) for r in conn.execute('SELECT * FROM expenses').fetchall()],
+        'incomes': [dict(r) for r in conn.execute('SELECT * FROM incomes').fetchall()],
+        'balance_snapshots': [dict(r) for r in conn.execute('SELECT * FROM balance_snapshots').fetchall()],
+        'special_items': [dict(r) for r in conn.execute('SELECT * FROM special_items').fetchall()],
     }
     conn.close()
     return jsonify(payload)
@@ -561,6 +909,10 @@ def import_data():
     c.execute('DELETE FROM thoughts')
     c.execute('DELETE FROM settings')
     c.execute('DELETE FROM wallpapers')
+    c.execute('DELETE FROM expenses')
+    c.execute('DELETE FROM incomes')
+    c.execute('DELETE FROM balance_snapshots')
+    c.execute('DELETE FROM special_items')
 
     for t in d.get('todos', []) or []:
         c.execute(
@@ -585,6 +937,28 @@ def import_data():
              w.get('name', ''),
              w.get('created_at') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
         )
+    for e in d.get('expenses', []) or []:
+        c.execute(
+            'INSERT INTO expenses (id,info,cat1,cat2,amount,date,created_at) VALUES (?,?,?,?,?,?,?)',
+            (e.get('id'), e.get('info', ''), e.get('cat1', ''), e.get('cat2', ''),
+             e.get('amount', 0), e.get('date') or date.today().isoformat(),
+             e.get('created_at') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+    for inc in d.get('incomes', []) or []:
+        c.execute(
+            'INSERT INTO incomes (id,info,amount,category,date,created_at) VALUES (?,?,?,?,?,?)',
+            (inc.get('id'), inc.get('info', ''), inc.get('amount', 0), inc.get('category', ''),
+             inc.get('date') or date.today().isoformat(),
+             inc.get('created_at') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+    for b in d.get('balance_snapshots', []) or []:
+        c.execute('INSERT OR REPLACE INTO balance_snapshots (id,date,amount,created_at) VALUES (?,?,?,?)',
+                  (b.get('id'), b.get('date'), b.get('amount', 0),
+                   b.get('created_at') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+    for s in d.get('special_items', []) or []:
+        c.execute(
+            'INSERT INTO special_items (id,name,amount,kind,checked,order_index,created_at) VALUES (?,?,?,?,?,?,?)',
+            (s.get('id'), s.get('name', ''), s.get('amount', 0), s.get('kind', 'asset'),
+             s.get('checked', 1), s.get('order_index', 0),
+             s.get('created_at') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
     for k, v in (d.get('settings', {}) or {}).items():
         c.execute('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)', (k, str(v)))
 
