@@ -78,6 +78,7 @@ const DEFAULT_SETTINGS = {
   emoji_todo_2: '🌗',
   emoji_todo_1: '🌘',
   show_datetime: 'true',
+  datetime_position: 'center',   // 'left' | 'center' | 'right'
   show_date: 'true',
   show_time: 'false',
   show_weekday: 'true',
@@ -150,6 +151,8 @@ const LUCIDE_PATHS = {
   'home':         '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
   'plus':         '<path d="M5 12h14"/><path d="M12 5v14"/>',
   'rotate-ccw':   '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  'book':         '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/>',
+  'wallet':       '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 1-1 1v-2"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
 };
 const lucide = (name, size = 16, sw = 2) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LUCIDE_PATHS[name]}</svg>`;
@@ -168,6 +171,8 @@ const ICONS = {
   calendar: lucide('calendar',     17, 1.9),
   home:     lucide('home',         17, 1.9),
   plus:     lucide('plus',         18, 2.1),
+  book:     lucide('book',         16, 1.9),
+  wallet:   lucide('wallet',       16, 1.9),
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -346,6 +351,10 @@ const applySettings = () => {
   const s = state.settings;
   const html = document.documentElement;
   const body = document.body;
+
+  // Header datetime position (left / center / right)
+  body.className = body.className.replace(/\bdtpos-\w+/g, '').trim();
+  body.classList.add(`dtpos-${s.datetime_position || 'center'}`);
 
   // Theme
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -532,8 +541,8 @@ function render() {
                 title="${state.appMode==='accounting'?'切换到日记':'切换到记账'}"
                 aria-label="切换日记 / 记账模式">
           <span class="mode-switch-thumb"></span>
-          <span class="mode-switch-opt" data-mode="diary">📓</span>
-          <span class="mode-switch-opt" data-mode="acct">💰</span>
+          <span class="mode-switch-opt" data-mode="diary">${ICONS.book}</span>
+          <span class="mode-switch-opt" data-mode="acct">${ICONS.wallet}</span>
         </button>
         <div class="header-datetime" id="header-datetime"></div>
         <div class="header-title">${state.view!=='main' ? titles[state.view] : ''}</div>
@@ -1323,6 +1332,24 @@ function renderTabAccounting() {
         </div>`).join('') : '<div class="empty-state" style="padding:10px">还没有特殊款项</div>'}
       <button class="glass-btn" style="margin-top:8px" data-act="acct-add-special">+ 添加款项</button>
     </div>
+
+    <div class="settings-section-title" style="margin-top:18px">数据备份</div>
+    <div class="settings-group">
+      <div class="settings-row">
+        <div class="settings-row-label">
+          导出全部数据
+          <div class="settings-row-sub">一键下载完整 JSON 备份（消费 / 收入 / 余额 / 特殊款项 / 分类 / 日记 / 设置）</div>
+        </div>
+        <button class="glass-btn" data-act="export-data">导出</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">
+          导入数据
+          <div class="settings-row-sub" style="color:#FF9500">会覆盖当前所有数据，请先导出做备份</div>
+        </div>
+        <button class="glass-btn" data-act="import-data">导入</button>
+      </div>
+    </div>
   `;
 }
 
@@ -1510,6 +1537,14 @@ function renderTabInterface() {
       <div class="settings-row">
         <div class="settings-row-label">隐藏时间</div>
         <button class="toggle-switch ${s.show_datetime==='false'?'on':''}" data-act="toggle" data-k="show_datetime" data-inv="1"></button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">时间显示位置</div>
+        <div class="segment-ctrl">
+          ${[['left','左上'],['center','居中'],['right','右上']].map(([v,n]) => `
+            <button class="${(s.datetime_position||'center')===v?'active':''}" data-act="set" data-k="datetime_position" data-v="${v}">${n}</button>
+          `).join('')}
+        </div>
       </div>
       <div class="settings-row">
         <div class="settings-row-label">想法与感受显示时间戳</div>

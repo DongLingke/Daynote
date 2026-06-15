@@ -156,6 +156,7 @@ def init_db():
         'emoji_todo_2': '🌗',
         'emoji_todo_1': '🌘',
         'show_datetime': 'true',
+        'datetime_position': 'center',
         'show_date': 'true',
         'show_time': 'false',
         'show_weekday': 'true',
