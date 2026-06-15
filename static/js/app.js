@@ -95,6 +95,12 @@ const DEFAULT_SETTINGS = {
   card_item_tint: '5',
   dim_past_thoughts: 'true',
   close_action: 'minimize',  // desktop app: 'minimize' or 'quit' on window close
+  // ── Accounting mode ──
+  app_mode: 'diary',         // 'diary' | 'accounting'
+  currency_symbol: '¥',
+  expense_categories: '{}',  // JSON {cat1: [cat2...]}
+  income_categories: '[]',   // JSON [cat...]
+  accounting_chart_days: '15',
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -118,6 +124,15 @@ const state = {
   addingTodo: false,    // main view: todos panel is showing its inline add row
   inlineEdit: null,   // { kind:'todo'|'thought', id, data:{...} } when a row is being edited in place
   inlineEditor: null, // WYSI editor instance for thought inline edits
+  // ── Accounting mode ──
+  appMode: 'diary',      // 'diary' | 'accounting' — mirrors settings.app_mode
+  accounting: {
+    summary: null,       // { current_balance, today_expense, today_income, month_expense, series:[] }
+    expenses: [],        // recent expense records
+    specialItems: [],    // 特殊款项
+  },
+  expenseForm: null,     // { id?, info, cat1, cat2, amount, date } when add/edit expense modal is open
+  acctCalDate: null,     // selected day in accounting calendar
 };
 
 /* SVG icons — verbatim paths from the Lucide icon library (lucide.dev, ISC).
@@ -455,6 +470,47 @@ async function refreshAll() {
   state.thoughts = thoughts;
   state.settings = { ...DEFAULT_SETTINGS, ...settings };
   state.wallpapers = wallpapers;
+  state.appMode = state.settings.app_mode === 'accounting' ? 'accounting' : 'diary';
+  if (state.appMode === 'accounting') await refreshAccounting();
+}
+
+/* Load accounting data (balance summary + recent expenses + special items). */
+async function refreshAccounting() {
+  const days = parseInt(state.settings.accounting_chart_days || '15', 10);
+  const [summary, expenses, specialItems] = await Promise.all([
+    api.get(`/accounting/summary?days=${days}`),
+    api.get('/expenses?limit=60'),
+    api.get('/special-items'),
+  ]);
+  state.accounting.summary = summary;
+  state.accounting.expenses = expenses;
+  state.accounting.specialItems = specialItems;
+}
+
+/* Parsed category config from settings (with safe fallbacks). */
+function expenseCats() {
+  try { return JSON.parse(state.settings.expense_categories || '{}'); } catch { return {}; }
+}
+function incomeCats() {
+  try { return JSON.parse(state.settings.income_categories || '[]'); } catch { return []; }
+}
+function currencySym() { return state.settings.currency_symbol || '¥'; }
+
+/* Today as zero-padded ISO 'YYYY-MM-DD' (matches the backend's date format;
+   utils.dateKey is NOT padded so it can't be used for date inputs / the API). */
+function isoToday() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+
+/* Format a number as money: ¥1,234.50 (drops .00). */
+function fmtMoney(n, withSym = true) {
+  const v = Number(n) || 0;
+  const neg = v < 0;
+  const abs = Math.abs(v);
+  const s = abs.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return (neg ? '-' : '') + (withSym ? currencySym() : '') + s;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -470,6 +526,9 @@ function render() {
     <div class="glass-layer"></div>
     <div class="card-content">
       <div class="card-header">
+        <button class="mode-toggle-btn" data-act="toggle-mode"
+                title="${state.appMode==='accounting'?'切换到日记':'切换到记账'}"
+                aria-label="切换模式">${state.appMode==='accounting'?'💰':'📓'}</button>
         <div class="header-datetime" id="header-datetime"></div>
         <div class="header-title">${state.view!=='main' ? titles[state.view] : ''}</div>
         <div class="header-nav">
@@ -498,10 +557,11 @@ function render() {
 }
 
 function renderViewBody() {
+  const acct = state.appMode === 'accounting';
   switch (state.view) {
-    case 'main':     return renderMainView();
+    case 'main':     return acct ? renderAccountingMain() : renderMainView();
     case 'add':      return renderAddView();
-    case 'calendar': return renderCalendarView();
+    case 'calendar': return acct ? renderAccountingCalendar() : renderCalendarView();
     case 'settings': return renderSettingsView();
   }
   return '';
@@ -750,6 +810,233 @@ function renderTodoInlineEditor(data) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   View – Accounting main (记账主页)
+   Left column: 当前余额 + 15天折线图 (top) / 特殊款项 (bottom)
+   Right column: 最近消费记录 (+ 添加)
+   ═══════════════════════════════════════════════════════════════════ */
+function renderAccountingMain() {
+  const sm = state.accounting.summary || { current_balance: 0, today_expense: 0, today_income: 0, month_expense: 0, series: [] };
+  const items = state.accounting.specialItems;
+  const expenses = state.accounting.expenses;
+
+  const balanceBlock = `
+    <div class="acct-balance-block">
+      <div class="acct-balance-row">
+        <div class="acct-balance-main">
+          <div class="acct-balance-label">当前余额</div>
+          <div class="acct-balance-value ${sm.current_balance < 0 ? 'neg' : ''}">${fmtMoney(sm.current_balance)}</div>
+          <div class="acct-balance-sub">
+            <span>今日支出 <b>${fmtMoney(sm.today_expense)}</b></span>
+            <span>本月支出 <b>${fmtMoney(sm.month_expense)}</b></span>
+          </div>
+        </div>
+        <div class="acct-chart-wrap">${renderBalanceChart(sm.series)}</div>
+      </div>
+    </div>`;
+
+  const specialBlock = `
+    <div class="acct-special-block">
+      <div class="acct-special-head">
+        <span>特殊款项</span>
+        <button class="panel-add-btn" data-act="acct-add-special" title="添加款项" aria-label="添加款项">${ICONS.plus}</button>
+      </div>
+      <div class="acct-special-list">
+        ${items.length ? items.map(renderSpecialItem).join('')
+          : `<div class="empty-state" style="padding:14px 6px;font-size:12px">还没有特殊款项<br>点 + 添加贷款 / 账户余额</div>`}
+      </div>
+    </div>`;
+
+  const expensesBlock = `
+    <div class="acct-expenses-panel">
+      <div class="panel-head">
+        <span class="panel-head-title">最近消费</span>
+        <button class="panel-add-btn" data-act="acct-add-expense" title="添加消费" aria-label="添加消费">${ICONS.plus}</button>
+      </div>
+      <div class="panel-scroll">
+        ${expenses.length ? renderExpenseList(expenses)
+          : `<div class="empty-state"><div class="empty-emoji">🧾</div><div>还没有消费记录<br>点右上角 + 记一笔</div></div>`}
+      </div>
+    </div>`;
+
+  return `
+    <div class="acct-desktop">
+      <div class="acct-left-col">
+        ${balanceBlock}
+        ${specialBlock}
+      </div>
+      <div class="panel-splitter" data-orient="v" data-skey="card_split" title="拖动调整分区比例"></div>
+      ${expensesBlock}
+    </div>
+    <div class="acct-mobile">
+      ${balanceBlock}
+      ${expensesBlock}
+      ${specialBlock}
+    </div>
+  `;
+}
+
+function renderSpecialItem(it) {
+  const signCls = it.kind === 'debt' ? 'debt' : 'asset';
+  const signLabel = it.kind === 'debt' ? '负债' : '资产';
+  return `
+    <div class="special-item ${it.checked ? '' : 'unchecked'}" data-special-id="${it.id}">
+      <button class="special-check ${it.checked ? 'on' : ''}" data-act="acct-toggle-special" data-id="${it.id}"
+              title="计入余额" aria-label="计入余额">${it.checked ? ICONS.check : ''}</button>
+      <div class="special-meta" data-act="acct-edit-special" data-id="${it.id}">
+        <div class="special-name">${utils.esc(it.name || '未命名')}</div>
+        <div class="special-kind ${signCls}">${signLabel}</div>
+      </div>
+      <div class="special-amount ${signCls}">${it.kind === 'debt' ? '-' : ''}${fmtMoney(it.amount)}</div>
+    </div>`;
+}
+
+function renderExpenseList(expenses) {
+  // Group by date
+  const groups = {};
+  for (const e of expenses) {
+    (groups[e.date] = groups[e.date] || []).push(e);
+  }
+  const dates = Object.keys(groups).sort().reverse();
+  return dates.map(date => {
+    const dayTotal = groups[date].reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    return `
+      <div class="expense-day-group">
+        <div class="expense-day-head">
+          <span>${fmtDateLabel(date)}</span>
+          <span class="expense-day-total">-${fmtMoney(dayTotal)}</span>
+        </div>
+        ${groups[date].map(e => `
+          <div class="expense-item" data-act="acct-edit-expense" data-id="${e.id}">
+            <div class="expense-cat-badge">${utils.esc(e.cat1 || '其他')}</div>
+            <div class="expense-info">
+              <div class="expense-title">${utils.esc(e.info || e.cat2 || e.cat1 || '消费')}</div>
+              <div class="expense-sub">${utils.esc([e.cat1, e.cat2].filter(Boolean).join(' · '))}</div>
+            </div>
+            <div class="expense-amount">-${fmtMoney(e.amount)}</div>
+          </div>
+        `).join('')}
+      </div>`;
+  }).join('');
+}
+
+/* SVG line chart for the balance series. Auto-scales to min/max with padding. */
+function renderBalanceChart(series) {
+  if (!series || series.length < 2) {
+    return `<div class="acct-chart-empty">余额趋势<br><span>记录消费后显示</span></div>`;
+  }
+  const W = 240, H = 96, padX = 8, padY = 14;
+  const vals = series.map(p => p.amount);
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if (min === max) { min -= 1; max += 1; }
+  const range = max - min;
+  const n = series.length;
+  const x = i => padX + (i / (n - 1)) * (W - padX * 2);
+  const y = v => padY + (1 - (v - min) / range) * (H - padY * 2);
+
+  const pts = series.map((p, i) => [x(i), y(p.amount)]);
+  const linePath = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L${pts[n-1][0].toFixed(1)},${H-padY} L${pts[0][0].toFixed(1)},${H-padY} Z`;
+  const last = series[n - 1];
+  const lastNeg = last.amount < 0;
+
+  return `
+    <div class="acct-chart">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="acct-chart-svg">
+        <defs>
+          <linearGradient id="acct-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28"/>
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="${areaPath}" fill="url(#acct-grad)"/>
+        <path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="2"
+              stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="${pts[n-1][0].toFixed(1)}" cy="${pts[n-1][1].toFixed(1)}" r="3" fill="var(--accent)"/>
+      </svg>
+      <div class="acct-chart-caption">近 ${n} 天 · 最高 ${fmtMoney(max)} / 最低 ${fmtMoney(min)}</div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   View – Accounting calendar (记账日历)
+   Each day shows its balance snapshot + expense records.
+   ═══════════════════════════════════════════════════════════════════ */
+function renderAccountingCalendar() {
+  const days = [];
+  for (let i = CAL_DAYS_RANGE - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d);
+  }
+  const { rows, cols } = getCalLayout();
+  const dpp = rows * cols;
+  const pages = [];
+  for (let i = 0; i < days.length; i += dpp) pages.push(days.slice(i, i + dpp));
+
+  // Build a quick balance lookup from the series
+  const series = (state.accounting.summary && state.accounting.summary.series) || [];
+  const balByDate = {};
+  for (const p of series) balByDate[p.date] = p.amount;
+
+  return `
+    <div class="calendar-view" style="--cal-rows:${rows};--cal-cols:${cols}">
+      <div class="calendar-scroller" id="cal-scroller">
+        ${pages.map(p => `
+          <div class="calendar-page">
+            ${p.map(d => renderAcctCalDay(d, balByDate)).join('')}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderAcctCalDay(d, balByDate) {
+  const today = new Date();
+  const isToday = utils.dateKey(d) === utils.dateKey(today);
+  const pad = n => String(n).padStart(2, '0');
+  const isoDate = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const dayNames = ['周日','周一','周二','周三','周四','周五','周六'];
+  const dayExpenses = state.accounting.expenses.filter(e => e.date === isoDate);
+  const dayTotal = dayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const bal = balByDate[isoDate];
+
+  return `
+    <div class="calendar-day acct-cal-day" data-date="${isoDate}">
+      <div class="cal-day-header ${isToday?'today':''}">
+        <div class="cal-day-name">${dayNames[d.getDay()]} ${isToday?'• 今天':''}</div>
+        <div class="cal-day-date">${d.getMonth()+1}/${d.getDate()}</div>
+        <button class="cal-day-add" data-act="acct-cal-add" data-date="${isoDate}" title="记一笔" aria-label="记一笔">${ICONS.plus}</button>
+      </div>
+      <div class="acct-cal-balance ${bal != null && bal < 0 ? 'neg' : ''}">
+        ${bal != null ? `余额 ${fmtMoney(bal)}` : '<span style="opacity:.4">无余额记录</span>'}
+        ${dayTotal > 0 ? `<span class="acct-cal-spent">-${fmtMoney(dayTotal)}</span>` : ''}
+      </div>
+      <div class="cal-day-body">
+        ${dayExpenses.length ? dayExpenses.map(e => `
+          <div class="cal-item acct-cal-item" data-act="acct-edit-expense" data-id="${e.id}">
+            <div class="cal-item-text">${utils.esc(e.info || e.cat2 || e.cat1 || '消费')}</div>
+            <div class="acct-cal-item-amt">-${fmtMoney(e.amount)}</div>
+          </div>
+        `).join('') : `<div class="empty-state" style="padding:10px 6px;font-size:11px">无消费</div>`}
+      </div>
+    </div>
+  `;
+}
+
+/* Friendly date label: 今天 / 昨天 / M月D日 周X */
+function fmtDateLabel(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.round((today - d) / 86400000);
+  if (diff === 0) return '今天';
+  if (diff === 1) return '昨天';
+  if (diff === 2) return '前天';
+  const names = ['周日','周一','周二','周三','周四','周五','周六'];
+  return `${d.getMonth()+1}月${d.getDate()}日 ${names[d.getDay()]}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    View – Add
    ═══════════════════════════════════════════════════════════════════ */
 function renderAddView() {
@@ -914,6 +1201,8 @@ function renderSettingsView() {
     { key: 'appearance', name: '色彩外观', icon: '🎨' },
     { key: 'wallpaper',  name: '壁纸',     icon: '🖼' },
     { key: 'interface',  name: '界面设置', icon: '🃏' },
+    // 记账模式专属设置：消费分类、收入分类、特殊款项
+    { key: 'accounting', name: '记账设置', icon: '💰' },
     // "浏览器" merged into "其他" as a top section, so it no longer
     // owns its own sidebar tab. The rest of 其他 covers reset / data.
     { key: 'reset',      name: '其他',     icon: '🔄' },
@@ -941,12 +1230,94 @@ function renderSettingsTab(tab) {
     case 'appearance': return renderTabAppearance();
     case 'wallpaper':  return renderTabWallpaper();
     case 'interface':  return renderTabInterface();
+    case 'accounting': return renderTabAccounting();
     case 'reset':      return renderTabReset();
     // Legacy fallthrough: if a stored settingsTab points to the
     // removed 'browser' tab, land on 其他 instead.
     case 'browser':    return renderTabReset();
   }
   return '';
+}
+
+/* Accounting settings: mode switch, currency, expense/income categories,
+   special items management. */
+function renderTabAccounting() {
+  const s = state.settings;
+  const cats = expenseCats();
+  const incs = incomeCats();
+  const items = state.accounting.specialItems;
+
+  const cat1Rows = Object.keys(cats).map(c1 => `
+    <div class="cat-edit-row">
+      <div class="cat-edit-c1">
+        <span class="cat-edit-c1-name">${utils.esc(c1)}</span>
+        <button class="cat-edit-del" data-act="acct-del-cat1" data-c1="${utils.esc(c1)}" title="删除一级分类">×</button>
+      </div>
+      <div class="cat-edit-c2-list">
+        ${(cats[c1] || []).map(c2 => `
+          <span class="cat-edit-chip">${utils.esc(c2)}
+            <button data-act="acct-del-cat2" data-c1="${utils.esc(c1)}" data-c2="${utils.esc(c2)}" title="删除">×</button>
+          </span>`).join('')}
+        <button class="cat-edit-add-c2" data-act="acct-add-cat2" data-c1="${utils.esc(c1)}">+ 二级</button>
+      </div>
+    </div>`).join('');
+
+  return `
+    <div class="settings-section-title">记账设置</div>
+
+    <div class="settings-group">
+      <div class="settings-row">
+        <div class="settings-row-label">当前模式</div>
+        <div class="segment-ctrl">
+          <button class="${state.appMode==='diary'?'active':''}" data-act="acct-set-mode" data-mode="diary">📓 日记</button>
+          <button class="${state.appMode==='accounting'?'active':''}" data-act="acct-set-mode" data-mode="accounting">💰 记账</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">货币符号</div>
+        <input type="text" class="modal-input" style="max-width:80px;text-align:center" value="${utils.esc(s.currency_symbol||'¥')}"
+               data-act="acct-set-currency" maxlength="3">
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">折线图天数</div>
+        <div class="segment-ctrl">
+          ${['7','15','30'].map(d => `<button class="${(s.accounting_chart_days||'15')===d?'active':''}" data-act="acct-set-chart-days" data-d="${d}">${d}天</button>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section-title" style="margin-top:18px">消费分类</div>
+    <div class="settings-group">
+      <div class="cat-edit-wrap">${cat1Rows || '<div class="empty-state" style="padding:10px">还没有分类</div>'}</div>
+      <button class="glass-btn" style="margin-top:8px" data-act="acct-add-cat1">+ 添加一级分类</button>
+    </div>
+
+    <div class="settings-section-title" style="margin-top:18px">收入分类</div>
+    <div class="settings-group">
+      <div class="cat-edit-c2-list">
+        ${incs.map(c => `<span class="cat-edit-chip">${utils.esc(c)}
+          <button data-act="acct-del-income-cat" data-c="${utils.esc(c)}" title="删除">×</button></span>`).join('')}
+        <button class="cat-edit-add-c2" data-act="acct-add-income-cat">+ 收入分类</button>
+      </div>
+    </div>
+
+    <div class="settings-section-title" style="margin-top:18px">特殊款项</div>
+    <div class="settings-group">
+      ${items.length ? items.map(it => `
+        <div class="settings-row">
+          <div class="settings-row-label">
+            ${utils.esc(it.name)}
+            <span class="special-kind ${it.kind==='debt'?'debt':'asset'}" style="margin-left:6px">${it.kind==='debt'?'负债':'资产'}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="special-amount ${it.kind==='debt'?'debt':'asset'}">${it.kind==='debt'?'-':''}${fmtMoney(it.amount)}</span>
+            <button class="cat-edit-del" data-act="acct-edit-special" data-id="${it.id}" title="编辑" style="color:var(--text-secondary)">✎</button>
+            <button class="cat-edit-del" data-act="acct-del-special" data-id="${it.id}" title="删除">×</button>
+          </div>
+        </div>`).join('') : '<div class="empty-state" style="padding:10px">还没有特殊款项</div>'}
+      <button class="glass-btn" style="margin-top:8px" data-act="acct-add-special">+ 添加款项</button>
+    </div>
+  `;
 }
 
 function renderTabAppearance() {
@@ -1886,6 +2257,38 @@ function bindGlobalEvents() {
       case 'view-settings': switchView('settings'); break;
       case 'view-calendar': switchView('calendar'); break;
       case 'view-main':     switchView('main');     break;
+      // ── Accounting mode ──
+      case 'toggle-mode':       await toggleAppMode(); break;
+      case 'acct-add-expense':  openExpenseModal(null); break;
+      case 'acct-edit-expense': openExpenseModal(el.dataset.id); break;
+      case 'acct-cal-add':      openExpenseModal(null, el.dataset.date); break;
+      case 'acct-add-special':  openSpecialModal(null); break;
+      case 'acct-edit-special': openSpecialModal(el.dataset.id); break;
+      case 'acct-toggle-special': await toggleSpecialItem(el.dataset.id); break;
+      // ── Accounting settings ──
+      case 'acct-set-mode':
+        if (el.dataset.mode !== state.appMode) await toggleAppMode();
+        else render();
+        break;
+      case 'acct-set-chart-days':
+        await setSetting('accounting_chart_days', el.dataset.d);
+        state.settings.accounting_chart_days = el.dataset.d;
+        await refreshAccounting();
+        render();
+        break;
+      case 'acct-del-special':
+        if (confirm('确定删除这个款项？')) {
+          await api.del(`/special-items/${el.dataset.id}`);
+          await refreshAccounting();
+          render();
+        }
+        break;
+      case 'acct-add-cat1': await acctAddCat1(); break;
+      case 'acct-del-cat1': await acctDelCat1(el.dataset.c1); break;
+      case 'acct-add-cat2': await acctAddCat2(el.dataset.c1); break;
+      case 'acct-del-cat2': await acctDelCat2(el.dataset.c1, el.dataset.c2); break;
+      case 'acct-add-income-cat': await acctAddIncomeCat(); break;
+      case 'acct-del-income-cat': await acctDelIncomeCat(el.dataset.c); break;
       case 'toggle-add-thought':
         state.addingThought = !state.addingThought;
         render();
@@ -2134,6 +2537,17 @@ function bindViewEvents() {
 
   // Panel splitter drag (resize thoughts/todos panels)
   document.querySelectorAll('.panel-splitter').forEach(s => attachSplitterDrag(s));
+
+  // Currency symbol input (accounting settings)
+  const curInput = document.querySelector('[data-act="acct-set-currency"]');
+  if (curInput) {
+    curInput.addEventListener('change', async () => {
+      const v = curInput.value.trim() || '¥';
+      await setSetting('currency_symbol', v);
+      state.settings.currency_symbol = v;
+      if (state.appMode === 'accounting') render();
+    });
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2237,6 +2651,87 @@ async function switchView(target) {
   // Leaving the main view collapses any open inline add forms.
   if (state.view !== 'main') { state.addingThought = false; state.addingTodo = false; }
   render();
+}
+
+/* Toggle between diary (日记) and accounting (记账) modes. Persists to
+   settings, loads accounting data on first switch, and resets to the
+   main view so the user lands on the mode's home screen. */
+async function toggleAppMode() {
+  const next = state.appMode === 'accounting' ? 'diary' : 'accounting';
+  state.appMode = next;
+  await setSetting('app_mode', next);
+  state.settings.app_mode = next;
+  state.view = 'main';
+  state.viewHistory = ['main'];
+  if (next === 'accounting') {
+    try { await refreshAccounting(); } catch (e) { console.warn('accounting load failed', e); }
+  }
+  render();
+}
+
+/* Toggle a special item's checked (counted-in-balance) state. */
+async function toggleSpecialItem(id) {
+  const it = state.accounting.specialItems.find(x => x.id == id);
+  if (!it) return;
+  const newChecked = it.checked ? 0 : 1;
+  it.checked = newChecked;   // optimistic
+  await api.put(`/special-items/${id}`, { checked: newChecked });
+  await refreshAccounting();
+  render();
+}
+
+/* ── Category editors (persist JSON to settings) ── */
+async function saveExpenseCats(cats) {
+  const json = JSON.stringify(cats);
+  await setSetting('expense_categories', json);
+  state.settings.expense_categories = json;
+  render();
+}
+async function saveIncomeCats(list) {
+  const json = JSON.stringify(list);
+  await setSetting('income_categories', json);
+  state.settings.income_categories = json;
+  render();
+}
+async function acctAddCat1() {
+  const name = (prompt('一级分类名称') || '').trim();
+  if (!name) return;
+  const cats = expenseCats();
+  if (cats[name]) { alert('该分类已存在'); return; }
+  cats[name] = [];
+  await saveExpenseCats(cats);
+}
+async function acctDelCat1(c1) {
+  if (!confirm(`删除一级分类「${c1}」及其所有二级分类？`)) return;
+  const cats = expenseCats();
+  delete cats[c1];
+  await saveExpenseCats(cats);
+}
+async function acctAddCat2(c1) {
+  const name = (prompt(`在「${c1}」下添加二级分类`) || '').trim();
+  if (!name) return;
+  const cats = expenseCats();
+  if (!cats[c1]) cats[c1] = [];
+  if (cats[c1].includes(name)) { alert('已存在'); return; }
+  cats[c1].push(name);
+  await saveExpenseCats(cats);
+}
+async function acctDelCat2(c1, c2) {
+  const cats = expenseCats();
+  if (cats[c1]) cats[c1] = cats[c1].filter(x => x !== c2);
+  await saveExpenseCats(cats);
+}
+async function acctAddIncomeCat() {
+  const name = (prompt('收入分类名称') || '').trim();
+  if (!name) return;
+  const list = incomeCats();
+  if (list.includes(name)) { alert('已存在'); return; }
+  list.push(name);
+  await saveIncomeCats(list);
+}
+async function acctDelIncomeCat(c) {
+  const list = incomeCats().filter(x => x !== c);
+  await saveIncomeCats(list);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -3430,6 +3925,202 @@ async function toggleCompleteEditing(newCompleted) {
   render();
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   Accounting modals — add/edit expense & special item
+   ═══════════════════════════════════════════════════════════════════ */
+function openExpenseModal(id, presetDate) {
+  let form;
+  if (id) {
+    const e = state.accounting.expenses.find(x => x.id == id);
+    if (!e) return;
+    form = { id: e.id, info: e.info || '', cat1: e.cat1 || '', cat2: e.cat2 || '', amount: e.amount, date: e.date };
+  } else {
+    const cats = expenseCats();
+    const firstCat = Object.keys(cats)[0] || '';
+    form = { id: null, info: '', cat1: firstCat, cat2: '', amount: '', date: presetDate || isoToday() };
+  }
+  state.expenseForm = form;
+  state.specialForm = null;
+  state.editing = null;
+  renderExpenseModal();
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function syncExpenseInputs() {
+  const f = state.expenseForm;
+  if (!f) return;
+  const amt = document.getElementById('exp-amount');
+  const info = document.getElementById('exp-info');
+  const date = document.getElementById('exp-date');
+  if (amt) f.amount = amt.value;
+  if (info) f.info = info.value;
+  if (date) f.date = date.value;
+}
+
+function renderExpenseModal() {
+  const card = document.querySelector('#edit-modal .modal-card');
+  const f = state.expenseForm;
+  if (!f) { card.innerHTML = ''; return; }
+  const cats = expenseCats();
+  const cat1Keys = Object.keys(cats);
+  const cat2List = cats[f.cat1] || [];
+  card.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">${f.id ? '编辑消费' : '记一笔消费'}</div>
+      <button class="icon-btn" data-act="close-acct-modal" title="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="exp-amount-wrap">
+        <span class="exp-amount-sym">${currencySym()}</span>
+        <input type="number" inputmode="decimal" step="0.01" class="exp-amount-input" id="exp-amount"
+               value="${f.amount}" placeholder="0.00" autocomplete="off">
+      </div>
+      <div>
+        <div class="modal-field-label">一级分类</div>
+        <div class="cat-chip-row">
+          ${cat1Keys.map(c => `<button class="cat-chip ${f.cat1===c?'active':''}" data-act="exp-set-cat1" data-c="${utils.esc(c)}">${utils.esc(c)}</button>`).join('')}
+        </div>
+      </div>
+      ${cat2List.length ? `
+      <div>
+        <div class="modal-field-label">二级分类</div>
+        <div class="cat-chip-row">
+          ${cat2List.map(c => `<button class="cat-chip sub ${f.cat2===c?'active':''}" data-act="exp-set-cat2" data-c="${utils.esc(c)}">${utils.esc(c)}</button>`).join('')}
+        </div>
+      </div>` : ''}
+      <div>
+        <div class="modal-field-label">具体信息</div>
+        <input type="text" class="modal-input" id="exp-info" value="${utils.esc(f.info)}" placeholder="如：和朋友吃饭" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div>
+        <div class="modal-field-label">日期</div>
+        <input type="date" class="modal-input" id="exp-date" value="${f.date}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      ${f.id ? `<button class="danger-btn" data-act="exp-delete">删除</button>` : ''}
+      <div style="flex:1"></div>
+      <button class="glass-btn" data-act="close-acct-modal">取消</button>
+      <button class="glass-btn primary" data-act="exp-save">保存</button>
+    </div>
+  `;
+  setTimeout(() => document.getElementById('exp-amount')?.focus(), 50);
+}
+
+async function saveExpense() {
+  syncExpenseInputs();
+  const f = state.expenseForm;
+  const amount = parseFloat(f.amount);
+  if (!amount || amount <= 0) { alert('请输入有效金额'); return; }
+  const payload = { info: f.info, cat1: f.cat1, cat2: f.cat2, amount, date: f.date };
+  if (f.id) await api.put(`/expenses/${f.id}`, payload);
+  else await api.post('/expenses', payload);
+  state.expenseForm = null;
+  document.getElementById('edit-modal').classList.add('hidden');
+  await refreshAccounting();
+  render();
+}
+
+async function deleteExpenseRecord() {
+  const f = state.expenseForm;
+  if (!f || !f.id) return;
+  if (!confirm('确定删除这条消费记录？')) return;
+  await api.del(`/expenses/${f.id}`);
+  state.expenseForm = null;
+  document.getElementById('edit-modal').classList.add('hidden');
+  await refreshAccounting();
+  render();
+}
+
+function openSpecialModal(id) {
+  let form;
+  if (id) {
+    const it = state.accounting.specialItems.find(x => x.id == id);
+    if (!it) return;
+    form = { id: it.id, name: it.name || '', amount: it.amount, kind: it.kind || 'asset' };
+  } else {
+    form = { id: null, name: '', amount: '', kind: 'asset' };
+  }
+  state.specialForm = form;
+  state.expenseForm = null;
+  state.editing = null;
+  renderSpecialModal();
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function syncSpecialInputs() {
+  const f = state.specialForm;
+  if (!f) return;
+  const name = document.getElementById('sp-name');
+  const amt = document.getElementById('sp-amount');
+  if (name) f.name = name.value;
+  if (amt) f.amount = amt.value;
+}
+
+function renderSpecialModal() {
+  const card = document.querySelector('#edit-modal .modal-card');
+  const f = state.specialForm;
+  if (!f) { card.innerHTML = ''; return; }
+  card.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">${f.id ? '编辑款项' : '添加特殊款项'}</div>
+      <button class="icon-btn" data-act="close-acct-modal" title="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <div class="modal-field-label">名称</div>
+        <input type="text" class="modal-input" id="sp-name" value="${utils.esc(f.name)}" placeholder="如：招商银行 / 房贷" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div>
+        <div class="modal-field-label">金额</div>
+        <div class="exp-amount-wrap">
+          <span class="exp-amount-sym">${currencySym()}</span>
+          <input type="number" inputmode="decimal" step="0.01" class="exp-amount-input" id="sp-amount" value="${f.amount}" placeholder="0.00" autocomplete="off">
+        </div>
+      </div>
+      <div>
+        <div class="modal-field-label">类型</div>
+        <div class="type-toggle" style="display:inline-flex">
+          <button class="${f.kind==='asset'?'active':''}" data-act="sp-set-kind" data-kind="asset">💰 资产（计入余额 +）</button>
+          <button class="${f.kind==='debt'?'active':''}" data-act="sp-set-kind" data-kind="debt">💳 负债（计入余额 −）</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      ${f.id ? `<button class="danger-btn" data-act="sp-delete">删除</button>` : ''}
+      <div style="flex:1"></div>
+      <button class="glass-btn" data-act="close-acct-modal">取消</button>
+      <button class="glass-btn primary" data-act="sp-save">保存</button>
+    </div>
+  `;
+  setTimeout(() => document.getElementById('sp-name')?.focus(), 50);
+}
+
+async function saveSpecial() {
+  syncSpecialInputs();
+  const f = state.specialForm;
+  if (!f.name.trim()) { alert('请输入名称'); return; }
+  const amount = parseFloat(f.amount) || 0;
+  const payload = { name: f.name.trim(), amount, kind: f.kind };
+  if (f.id) await api.put(`/special-items/${f.id}`, payload);
+  else await api.post('/special-items', { ...payload, checked: true });
+  state.specialForm = null;
+  document.getElementById('edit-modal').classList.add('hidden');
+  await refreshAccounting();
+  render();
+}
+
+async function deleteSpecial() {
+  const f = state.specialForm;
+  if (!f || !f.id) return;
+  if (!confirm('确定删除这个款项？')) return;
+  await api.del(`/special-items/${f.id}`);
+  state.specialForm = null;
+  document.getElementById('edit-modal').classList.add('hidden');
+  await refreshAccounting();
+  render();
+}
+
 // Click handler for the edit modal (delegated). Handles both the legacy
 // `state.editing` modal AND the new calendar popup, which reuses the
 // inline-* action set (`inline-save`, `inline-cancel`, etc).
@@ -3439,7 +4130,11 @@ document.getElementById('edit-modal').addEventListener('click', async (e) => {
   const act = el.dataset.act;
   switch (act) {
     case 'close-modal':
-      if (state.inlineEdit && state.inlineEdit.mode === 'popup') {
+      if (state.expenseForm || state.specialForm) {
+        state.expenseForm = null;
+        state.specialForm = null;
+        document.getElementById('edit-modal').classList.add('hidden');
+      } else if (state.inlineEdit && state.inlineEdit.mode === 'popup') {
         await saveInlineEdit();   // overlay click → auto-save & close
       } else {
         closeEditModal();
@@ -3477,6 +4172,32 @@ document.getElementById('edit-modal').addEventListener('click', async (e) => {
         });
       }
       break;
+    // ── Accounting modal actions ──
+    case 'close-acct-modal':
+      state.expenseForm = null;
+      state.specialForm = null;
+      document.getElementById('edit-modal').classList.add('hidden');
+      break;
+    case 'exp-set-cat1':
+      syncExpenseInputs();
+      state.expenseForm.cat1 = el.dataset.c;
+      state.expenseForm.cat2 = '';   // reset secondary when primary changes
+      renderExpenseModal();
+      break;
+    case 'exp-set-cat2':
+      syncExpenseInputs();
+      state.expenseForm.cat2 = (state.expenseForm.cat2 === el.dataset.c) ? '' : el.dataset.c;
+      renderExpenseModal();
+      break;
+    case 'exp-save':   await saveExpense(); break;
+    case 'exp-delete': await deleteExpenseRecord(); break;
+    case 'sp-set-kind':
+      syncSpecialInputs();
+      state.specialForm.kind = el.dataset.kind;
+      renderSpecialModal();
+      break;
+    case 'sp-save':   await saveSpecial(); break;
+    case 'sp-delete': await deleteSpecial(); break;
   }
 });
 

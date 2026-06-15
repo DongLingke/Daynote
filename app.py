@@ -589,22 +589,30 @@ def delete_wallpaper(wid):
 # ── Accounting mode (记账模式) ──────────────────────────────────────────────────
 #
 # Balance model (个人余额):
-#   current_balance = Σ(checked special_items, asset positive / debt negative)
-#   The displayed "current balance" is this live sum — the user maintains the
-#   special items to reflect their real accounts & loans.
+#   baseline       = Σ(checked special_items, asset + / debt −)   # 起始资金/账户本金
+#   current_balance = baseline + Σ(all income) − Σ(all expense)
+#   So the special items anchor the starting net worth, and every expense /
+#   income recorded afterwards moves the balance — "根据消费记录变化来计算".
 #   Daily snapshots (table C) freeze the balance at each day's 0:00. The chart
-#   reads snapshots where present, and derives missing days by walking the
-#   current balance backward through each day's net flow (income − expense):
+#   derives each day's balance by walking the current balance backward through
+#   each day's net flow (income − expense):
 #       balance(D) = current_balance − Σ net(d) for d in (D, today]
 #   so the line always ends at today's current balance and steps by daily flow.
 
-def _current_balance(conn):
-    """Live personal balance = sum of checked special items (asset +, debt −)."""
+def _baseline(conn):
+    """Anchor = sum of checked special items (asset +, debt −)."""
     row = conn.execute(
         "SELECT COALESCE(SUM(CASE WHEN kind='debt' THEN -amount ELSE amount END), 0) AS b "
         "FROM special_items WHERE checked=1"
     ).fetchone()
-    return round(row['b'] or 0.0, 2)
+    return row['b'] or 0.0
+
+
+def _current_balance(conn):
+    """Live personal balance = baseline + total income − total expense."""
+    inc = conn.execute("SELECT COALESCE(SUM(amount),0) s FROM incomes").fetchone()['s'] or 0
+    exp = conn.execute("SELECT COALESCE(SUM(amount),0) s FROM expenses").fetchone()['s'] or 0
+    return round(_baseline(conn) + inc - exp, 2)
 
 
 def _day_net(conn, day):
@@ -615,25 +623,20 @@ def _day_net(conn, day):
 
 
 def _balance_series(conn, days=15):
-    """Return [{date, amount}] oldest→newest for the last `days` days."""
+    """Return [{date, amount}] oldest→newest for the last `days` days.
+
+    Derives purely from the current balance walking backward through each
+    day's net flow, so the line is always self-consistent and reflects any
+    edits to past records immediately. Today is always the live balance."""
     today = date.today()
     cur = _current_balance(conn)
-    snaps = {r['date']: r['amount'] for r in
-             conn.execute("SELECT date, amount FROM balance_snapshots").fetchall()}
     out = []
-    # Walk from today backward, accumulating net so each earlier day subtracts it.
     running = cur
     for i in range(days):
         d = (today - timedelta(days=i)).isoformat()
-        if d in snaps:
-            val = snaps[d]
-        elif i == 0:
-            val = cur
-        else:
-            val = running
-        out.append({'date': d, 'amount': round(val, 2)})
-        # Prepare value for the previous day: subtract this day's net flow.
-        running = round(val - _day_net(conn, d), 2)
+        out.append({'date': d, 'amount': round(running, 2)})
+        # Step to the previous day: subtract this day's net flow.
+        running = round(running - _day_net(conn, d), 2)
     out.reverse()
     return out
 
