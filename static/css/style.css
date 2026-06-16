@@ -3051,9 +3051,12 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
   border-bottom: 1px solid var(--divider);
 }
 .acct-cal-balance.neg { color: var(--danger, #e5484d); }
-.acct-cal-spent { margin-left: auto; color: var(--text-tertiary); }
+.acct-cal-net { margin-left: auto; font-weight: 600; }
+.acct-cal-net.pos { color: #30a46c; }
+.acct-cal-net.neg { color: var(--text-secondary); }
 .acct-cal-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .acct-cal-item-amt { flex-shrink: 0; font-size: 0.78rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.acct-cal-item-amt.pos { color: #30a46c; }
 
 /* ── Category editor (inline, emoji-aware) ── */
 .ce-c1 {

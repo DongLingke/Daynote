@@ -1047,9 +1047,19 @@ function renderAcctCalDay(d, balByDate) {
   const pad = n => String(n).padStart(2, '0');
   const isoDate = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const dayNames = ['周日','周一','周二','周三','周四','周五','周六'];
-  const dayExpenses = state.accounting.expenses.filter(e => e.date === isoDate);
-  const dayTotal = dayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+  const dayExpenses = (state.accounting.expenses || []).filter(e => e.date === isoDate);
+  const dayIncomes = (state.accounting.incomes || []).filter(i => i.date === isoDate);
+  const expTotal = dayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const incTotal = dayIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const net = incTotal - expTotal;
   const bal = balByDate[isoDate];
+
+  // Merge records, income then expense, each tagged for click routing.
+  const rows = [
+    ...dayIncomes.map(i => ({ ...i, _kind: 'income' })),
+    ...dayExpenses.map(e => ({ ...e, _kind: 'expense' })),
+  ].sort((a, b) => (b.id || 0) - (a.id || 0));
 
   return `
     <div class="calendar-day acct-cal-day" data-date="${isoDate}">
@@ -1060,15 +1070,18 @@ function renderAcctCalDay(d, balByDate) {
       </div>
       <div class="acct-cal-balance ${bal != null && bal < 0 ? 'neg' : ''}">
         ${bal != null ? `余额 ${fmtMoney(bal)}` : '<span style="opacity:.4">无余额记录</span>'}
-        ${dayTotal > 0 ? `<span class="acct-cal-spent">-${fmtMoney(dayTotal)}</span>` : ''}
+        ${rows.length ? `<span class="acct-cal-net ${net < 0 ? 'neg' : 'pos'}">${fmtSigned(net)}</span>` : ''}
       </div>
       <div class="cal-day-body">
-        ${dayExpenses.length ? dayExpenses.map(e => `
-          <div class="cal-item acct-cal-item" data-act="acct-edit-expense" data-id="${e.id}">
-            <div class="cal-item-text">${utils.esc(e.info || e.cat2 || e.cat1 || '消费')}</div>
-            <div class="acct-cal-item-amt">-${fmtMoney(e.amount)}</div>
-          </div>
-        `).join('') : `<div class="empty-state" style="padding:10px 6px;font-size:11px">无消费</div>`}
+        ${rows.length ? rows.map(r => r._kind === 'income' ? `
+          <div class="cal-item acct-cal-item" data-act="acct-edit-income" data-id="${r.id}">
+            <div class="cal-item-text">${utils.esc(r.info || r.category || '收入')}</div>
+            <div class="acct-cal-item-amt pos">+${fmtMoney(r.amount)}</div>
+          </div>` : `
+          <div class="cal-item acct-cal-item" data-act="acct-edit-expense" data-id="${r.id}">
+            <div class="cal-item-text">${utils.esc(r.info || r.cat2 || r.cat1 || '消费')}</div>
+            <div class="acct-cal-item-amt">-${fmtMoney(r.amount)}</div>
+          </div>`).join('') : `<div class="empty-state" style="padding:10px 6px;font-size:11px">无记录</div>`}
       </div>
     </div>
   `;
