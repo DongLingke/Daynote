@@ -869,6 +869,9 @@ def accounting_summary():
         'month_expense': conn.execute(
             "SELECT COALESCE(SUM(amount),0) s FROM expenses WHERE date>=?",
             (today[:8] + '01',)).fetchone()['s'] or 0,
+        'month_income': conn.execute(
+            "SELECT COALESCE(SUM(amount),0) s FROM incomes WHERE date>=?",
+            (today[:8] + '01',)).fetchone()['s'] or 0,
         'series': _balance_series(conn, days),
     }
     conn.close()

@@ -2863,29 +2863,18 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .mode-switch.is-acct .mode-switch-thumb { transform: translateX(32px); }
 
 /* ── Layout: desktop two-column / mobile stacked ── */
-.acct-desktop {
-  display: flex; flex-direction: row;
-  flex: 1; min-height: 0; overflow: hidden;
-}
-.acct-left-col {
-  flex: 0 0 var(--panel-split-w, 62.5%);
-  min-width: 0;
+/* ── Concept A layout: vertical hierarchy ── */
+.acct-home {
   display: flex; flex-direction: column;
-  overflow: hidden;
-  padding: 4px 8px 12px 16px;
+  flex: 1; min-height: 0; overflow: hidden;
+  padding: 8px 16px 12px;
   gap: 12px;
 }
-.acct-expenses-panel {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-}
-.acct-mobile { display: none; }
 
-/* ── Balance block ── */
-.acct-balance-block { flex-shrink: 0; }
-.acct-balance-row {
-  display: flex; align-items: stretch; gap: 14px;
+/* ── 总览带: balance + full-width chart ── */
+.acct-overview {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 18px;
 }
 .acct-balance-main { flex-shrink: 0; }
 .acct-balance-label {
@@ -2894,116 +2883,139 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
   margin-bottom: 2px;
 }
 .acct-balance-value {
-  font-size: 2.1rem; font-weight: 700; line-height: 1.1;
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
+  font-size: 2.2rem; font-weight: 700; line-height: 1.1;
+  color: var(--text-primary); font-variant-numeric: tabular-nums;
 }
 .acct-balance-value.neg { color: var(--danger, #e5484d); }
-.acct-balance-sub {
-  display: flex; gap: 14px; flex-wrap: wrap;
-  margin-top: 6px;
-  font-size: 0.72rem; color: var(--text-tertiary);
-}
-.acct-balance-sub b { color: var(--text-secondary); font-weight: 600; }
-
-/* ── Line chart ── */
-.acct-chart-wrap { flex: 1; min-width: 0; display: flex; align-items: center; }
+.acct-chart-wrap { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; }
 .acct-chart { width: 100%; }
-.acct-chart-svg {
-  width: 100%; height: 96px; display: block;
-  overflow: visible;
-}
+.acct-chart-svg { width: 100%; height: 84px; display: block; }
 .acct-chart-caption {
-  font-size: 0.66rem; color: var(--text-tertiary);
-  text-align: right; margin-top: 2px;
-  font-variant-numeric: tabular-nums;
+  font-size: 0.64rem; color: var(--text-tertiary);
+  text-align: right; margin-top: 1px; font-variant-numeric: tabular-nums;
 }
 .acct-chart-empty {
   flex: 1; text-align: center; align-self: center;
-  font-size: 0.78rem; color: var(--text-tertiary); line-height: 1.5;
+  font-size: 0.78rem; color: var(--text-tertiary);
 }
-.acct-chart-empty span { font-size: 0.68rem; opacity: 0.7; }
 
-/* ── Special items column ── */
-.acct-special-block {
-  flex: 1; min-height: 0;
-  display: flex; flex-direction: column;
-  border-top: 1px solid var(--divider);
-  padding-top: 8px;
-}
-.acct-special-head {
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0; padding: 0 2px 6px;
-  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em;
-  text-transform: uppercase; color: var(--text-tertiary);
-}
-.acct-special-head .panel-add-btn { width: 22px; height: 22px; }
-.acct-special-list { flex: 1; min-height: 0; overflow-y: auto; }
-.special-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 8px; border-radius: var(--radius-sm);
-  transition: background 0.12s;
-}
-.special-item:hover { background: var(--item-glass); }
-.special-item.unchecked { opacity: 0.45; }
-.special-check {
+/* ── 统计小卡 ── */
+.acct-stats {
   flex-shrink: 0;
-  width: 20px; height: 20px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+}
+.acct-stat {
+  background: var(--item-glass); border: 1px solid var(--item-border);
+  border-radius: var(--radius-sm); padding: 7px 10px;
+}
+.acct-stat-label { font-size: 0.66rem; color: var(--text-tertiary); }
+.acct-stat-val {
+  font-size: 0.98rem; font-weight: 600; color: var(--text-primary);
+  font-variant-numeric: tabular-nums; margin-top: 1px;
+}
+.acct-stat-val.pos { color: #30a46c; }
+.acct-stat-val.neg { color: var(--danger, #e5484d); }
+
+/* ── 账户卡片横排 ── */
+.acct-accounts-strip {
+  flex-shrink: 0;
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.acct-card {
+  flex: 0 0 auto; min-width: 116px; max-width: 160px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--item-border); background: var(--item-glass);
+  transition: opacity 0.12s, border-color 0.12s;
+}
+.acct-card.off { opacity: 0.42; }
+.acct-card-check {
+  flex-shrink: 0; width: 20px; height: 20px;
   display: flex; align-items: center; justify-content: center;
-  padding: 0; border-radius: 6px;
-  border: 1.5px solid var(--item-border);
+  padding: 0; border-radius: 6px; border: 1.5px solid var(--item-border);
   background: transparent; color: #fff; cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
-.special-check.on { background: var(--accent); border-color: var(--accent); }
-.special-check svg { width: 13px; height: 13px; }
-.special-meta { flex: 1; min-width: 0; cursor: pointer; }
-.special-name {
-  font-size: 0.86rem; color: var(--text-primary);
+.acct-card-check.on { background: var(--accent); border-color: var(--accent); }
+.acct-card-check svg { width: 13px; height: 13px; }
+.acct-card-body { flex: 1; min-width: 0; cursor: pointer; }
+.acct-card-name {
+  font-size: 0.8rem; color: var(--text-secondary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.special-kind { font-size: 0.66rem; }
-.special-kind.asset { color: #30a46c; }
-.special-kind.debt { color: #e5484d; }
-.special-amount {
-  flex-shrink: 0; font-size: 0.88rem; font-weight: 600;
-  font-variant-numeric: tabular-nums;
+.acct-card-amt {
+  font-size: 0.95rem; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 1px;
 }
-.special-amount.asset { color: var(--text-primary); }
-.special-amount.debt { color: #e5484d; }
+.acct-card-amt.asset { color: var(--text-primary); }
+.acct-card-amt.debt { color: #e5484d; }
+.acct-card-add {
+  cursor: pointer; color: var(--text-tertiary);
+  border-style: dashed; justify-content: center; min-width: 100px;
+}
+.acct-card-add:hover { color: var(--accent); border-color: var(--accent); }
+.acct-card-add-plus { display: flex; }
+.acct-card-add-plus svg { width: 16px; height: 16px; }
+.acct-card-add-txt { font-size: 0.78rem; }
 
-/* ── Expense list ── */
-.expense-day-group { margin-bottom: 10px; }
-.expense-day-head {
-  display: flex; justify-content: space-between; align-items: baseline;
-  padding: 4px 6px; position: sticky; top: 0;
-  font-size: 0.72rem; color: var(--text-tertiary);
-  background: linear-gradient(var(--card-bg-solid, rgba(0,0,0,0)), transparent);
-  backdrop-filter: blur(2px);
+/* ── 全宽流水 ── */
+.acct-feed {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--divider); padding-top: 6px;
 }
-.expense-day-total { font-weight: 600; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.expense-item {
+.acct-feed-head {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; padding: 2px 2px 6px;
+}
+.acct-feed-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+
+.ledger-day { margin-bottom: 10px; }
+.ledger-day-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 4px 6px;
+  font-size: 0.72rem; color: var(--text-tertiary);
+}
+.ledger-day-net { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ledger-day-net.pos { color: #30a46c; }
+.ledger-day-net.neg { color: var(--text-secondary); }
+.ledger-row {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 8px; border-radius: var(--radius-item, 10px);
   cursor: pointer; transition: background 0.12s;
 }
-.expense-item:hover { background: var(--item-glass); }
-.expense-cat-badge {
-  flex-shrink: 0; min-width: 38px; padding: 4px 8px;
+.ledger-row:hover { background: var(--item-glass); }
+.ledger-badge {
+  flex-shrink: 0; min-width: 40px; padding: 4px 8px;
   border-radius: 8px; background: var(--accent-dim, var(--item-glass));
-  color: var(--accent); font-size: 0.72rem; font-weight: 600;
-  text-align: center;
+  color: var(--accent); font-size: 0.72rem; font-weight: 600; text-align: center;
 }
-.expense-info { flex: 1; min-width: 0; }
-.expense-title {
+.ledger-badge.income { background: rgba(48,164,108,0.14); color: #30a46c; }
+.ledger-info { flex: 1; min-width: 0; }
+.ledger-title {
   font-size: 0.9rem; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.expense-sub { font-size: 0.7rem; color: var(--text-tertiary); margin-top: 1px; }
-.expense-amount {
+.ledger-sub { font-size: 0.7rem; color: var(--text-tertiary); margin-top: 1px; }
+.ledger-amt {
   flex-shrink: 0; font-size: 0.95rem; font-weight: 600;
   color: var(--text-primary); font-variant-numeric: tabular-nums;
 }
+.ledger-amt.pos { color: #30a46c; }
+
+/* ── Entry type toggle (支出 / 收入) ── */
+.entry-type-toggle {
+  display: flex; gap: 4px; padding: 3px;
+  background: var(--item-glass); border-radius: 999px;
+  border: 1px solid var(--item-border);
+}
+.entry-type-toggle button {
+  flex: 1; border: none; background: transparent; cursor: pointer;
+  padding: 6px 0; border-radius: 999px; font-size: 0.86rem;
+  color: var(--text-secondary); transition: background 0.15s, color 0.15s;
+}
+.entry-type-toggle button.active { background: var(--accent); color: #fff; }
+.exp-amount-wrap.income { border-bottom-color: #30a46c; }
 
 /* ── Expense add/edit modal ── */
 .exp-amount-wrap {
@@ -3124,15 +3136,11 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .ce-emoji-none { font-size: 0.72rem; color: var(--text-tertiary); border: 1px dashed var(--item-border); }
 
 @media (max-width: 768px) {
-  .acct-desktop { display: none; }
-  .acct-mobile {
-    display: flex; flex-direction: column;
-    flex: 1; min-height: 0; overflow-y: auto;
-    padding: 8px 14px 12px;
-    gap: 14px;
-  }
-  .acct-mobile .acct-balance-row { flex-direction: column; gap: 8px; }
-  .acct-mobile .acct-expenses-panel { min-height: 200px; }
-  .acct-mobile .acct-special-block { border-top: 1px solid var(--divider); }
-  .acct-balance-value { font-size: 1.8rem; }
+  .acct-home { padding: 6px 12px 10px; gap: 10px; }
+  /* Stack balance above the chart on narrow screens */
+  .acct-overview { flex-direction: column; align-items: stretch; gap: 6px; }
+  .acct-balance-value { font-size: 1.85rem; }
+  .acct-chart-svg { height: 64px; }
+  /* 4 stat cards → 2×2 grid */
+  .acct-stats { grid-template-columns: repeat(2, 1fr); }
 }

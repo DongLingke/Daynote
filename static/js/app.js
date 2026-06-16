@@ -128,11 +128,12 @@ const state = {
   // ── Accounting mode ──
   appMode: 'diary',      // 'diary' | 'accounting' — mirrors settings.app_mode
   accounting: {
-    summary: null,       // { current_balance, today_expense, today_income, month_expense, series:[] }
+    summary: null,       // { current_balance, today_expense, today_income, month_expense, month_income, series:[] }
     expenses: [],        // recent expense records
+    incomes: [],         // recent income records
     specialItems: [],    // 特殊款项
   },
-  expenseForm: null,     // { id?, info, cat1, cat2, amount, date } when add/edit expense modal is open
+  entryForm: null,       // { type:'expense'|'income', id?, info, cat1, cat2, category, amount, date } when the entry modal is open
   acctCalDate: null,     // selected day in accounting calendar
 };
 
@@ -486,13 +487,15 @@ async function refreshAll() {
 /* Load accounting data (balance summary + recent expenses + special items). */
 async function refreshAccounting() {
   const days = parseInt(state.settings.accounting_chart_days || '15', 10);
-  const [summary, expenses, specialItems] = await Promise.all([
+  const [summary, expenses, incomes, specialItems] = await Promise.all([
     api.get(`/accounting/summary?days=${days}`),
-    api.get('/expenses?limit=60'),
+    api.get('/expenses?limit=80'),
+    api.get('/incomes?limit=80'),
     api.get('/special-items'),
   ]);
   state.accounting.summary = summary;
   state.accounting.expenses = expenses;
+  state.accounting.incomes = incomes;
   state.accounting.specialItems = specialItems;
 }
 
@@ -845,121 +848,136 @@ function renderTodoInlineEditor(data) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   View – Accounting main (记账主页)
-   Left column: 当前余额 + 15天折线图 (top) / 特殊款项 (bottom)
-   Right column: 最近消费记录 (+ 添加)
+   View – Accounting main (记账主页) — Concept A
+   Vertical hierarchy: 总览带(余额 + 全宽折线图) → 统计小卡 →
+   账户卡片横排 → 全宽流水(支出/收入). Responsive at any width.
    ═══════════════════════════════════════════════════════════════════ */
 function renderAccountingMain() {
-  const sm = state.accounting.summary || { current_balance: 0, today_expense: 0, today_income: 0, month_expense: 0, series: [] };
+  const sm = state.accounting.summary || { current_balance: 0, today_expense: 0, today_income: 0, month_expense: 0, month_income: 0, series: [] };
   const items = state.accounting.specialItems;
-  const expenses = state.accounting.expenses;
+  const monthNet = (Number(sm.month_income) || 0) - (Number(sm.month_expense) || 0);
 
-  const balanceBlock = `
-    <div class="acct-balance-block">
-      <div class="acct-balance-row">
-        <div class="acct-balance-main">
-          <div class="acct-balance-label">当前余额</div>
-          <div class="acct-balance-value ${sm.current_balance < 0 ? 'neg' : ''}">${fmtMoney(sm.current_balance)}</div>
-          <div class="acct-balance-sub">
-            <span>今日支出 <b>${fmtMoney(sm.today_expense)}</b></span>
-            <span>本月支出 <b>${fmtMoney(sm.month_expense)}</b></span>
-          </div>
-        </div>
-        <div class="acct-chart-wrap">${renderBalanceChart(sm.series)}</div>
+  const overview = `
+    <div class="acct-overview">
+      <div class="acct-balance-main">
+        <div class="acct-balance-label">当前余额</div>
+        <div class="acct-balance-value ${sm.current_balance < 0 ? 'neg' : ''}">${fmtMoney(sm.current_balance)}</div>
+      </div>
+      <div class="acct-chart-wrap">${renderBalanceChart(sm.series)}</div>
+    </div>`;
+
+  const stat = (label, val, cls = '') =>
+    `<div class="acct-stat"><div class="acct-stat-label">${label}</div><div class="acct-stat-val ${cls}">${val}</div></div>`;
+  const stats = `
+    <div class="acct-stats">
+      ${stat('今日支出', sm.today_expense ? '-' + fmtMoney(sm.today_expense) : fmtMoney(0))}
+      ${stat('今日收入', sm.today_income ? '+' + fmtMoney(sm.today_income) : fmtMoney(0), 'pos')}
+      ${stat('本月支出', '-' + fmtMoney(sm.month_expense))}
+      ${stat('本月结余', fmtSigned(monthNet), monthNet < 0 ? 'neg' : 'pos')}
+    </div>`;
+
+  const accounts = `
+    <div class="acct-accounts-strip">
+      ${items.map(renderAccountCard).join('')}
+      <button class="acct-card acct-card-add" data-act="acct-add-special" title="添加款项" aria-label="添加款项">
+        <span class="acct-card-add-plus">${ICONS.plus}</span><span class="acct-card-add-txt">添加款项</span>
+      </button>
+    </div>`;
+
+  const records = mergedRecords();
+  const feed = `
+    <div class="acct-feed">
+      <div class="acct-feed-head">
+        <span class="panel-head-title">最近记录</span>
+        <button class="panel-add-btn" data-act="acct-add-expense" title="记一笔" aria-label="记一笔">${ICONS.plus}</button>
+      </div>
+      <div class="acct-feed-scroll">
+        ${records.length ? renderLedger(records)
+          : `<div class="empty-state"><div class="empty-emoji">🧾</div><div>还没有记录<br>点右上角 + 记一笔</div></div>`}
       </div>
     </div>`;
 
-  const specialBlock = `
-    <div class="acct-special-block">
-      <div class="acct-special-head">
-        <span>特殊款项</span>
-        <button class="panel-add-btn" data-act="acct-add-special" title="添加款项" aria-label="添加款项">${ICONS.plus}</button>
-      </div>
-      <div class="acct-special-list">
-        ${items.length ? items.map(renderSpecialItem).join('')
-          : `<div class="empty-state" style="padding:14px 6px;font-size:12px">还没有特殊款项<br>点 + 添加贷款 / 账户余额</div>`}
-      </div>
-    </div>`;
-
-  const expensesBlock = `
-    <div class="acct-expenses-panel">
-      <div class="panel-head">
-        <span class="panel-head-title">最近消费</span>
-        <button class="panel-add-btn" data-act="acct-add-expense" title="添加消费" aria-label="添加消费">${ICONS.plus}</button>
-      </div>
-      <div class="panel-scroll">
-        ${expenses.length ? renderExpenseList(expenses)
-          : `<div class="empty-state"><div class="empty-emoji">🧾</div><div>还没有消费记录<br>点右上角 + 记一笔</div></div>`}
-      </div>
-    </div>`;
-
-  return `
-    <div class="acct-desktop">
-      <div class="acct-left-col">
-        ${balanceBlock}
-        ${specialBlock}
-      </div>
-      <div class="panel-splitter" data-orient="v" data-skey="card_split" title="拖动调整分区比例"></div>
-      ${expensesBlock}
-    </div>
-    <div class="acct-mobile">
-      ${balanceBlock}
-      ${expensesBlock}
-      ${specialBlock}
-    </div>
-  `;
+  return `<div class="acct-home">${overview}${stats}${accounts}${feed}</div>`;
 }
 
-function renderSpecialItem(it) {
-  const signCls = it.kind === 'debt' ? 'debt' : 'asset';
-  const signLabel = it.kind === 'debt' ? '负债' : '资产';
+/* '+¥12' / '-¥12' / '¥0' with an explicit sign for non-zero. */
+function fmtSigned(n) {
+  const v = Number(n) || 0;
+  return (v > 0 ? '+' : v < 0 ? '-' : '') + fmtMoney(Math.abs(v));
+}
+function incIcon(name) { const it = incomeCats().find(x => x.name === name); return it && it.icon ? it.icon : ''; }
+
+function renderAccountCard(it) {
+  const debt = it.kind === 'debt';
   return `
-    <div class="special-item ${it.checked ? '' : 'unchecked'}" data-special-id="${it.id}">
-      <button class="special-check ${it.checked ? 'on' : ''}" data-act="acct-toggle-special" data-id="${it.id}"
+    <div class="acct-card ${it.checked ? '' : 'off'} ${debt ? 'debt' : 'asset'}" data-special-id="${it.id}">
+      <button class="acct-card-check ${it.checked ? 'on' : ''}" data-act="acct-toggle-special" data-id="${it.id}"
               title="计入余额" aria-label="计入余额">${it.checked ? ICONS.check : ''}</button>
-      <div class="special-meta" data-act="acct-edit-special" data-id="${it.id}">
-        <div class="special-name">${utils.esc(it.name || '未命名')}</div>
-        <div class="special-kind ${signCls}">${signLabel}</div>
+      <div class="acct-card-body" data-act="acct-edit-special" data-id="${it.id}">
+        <div class="acct-card-name">${utils.esc(it.name || '未命名')}</div>
+        <div class="acct-card-amt ${debt ? 'debt' : 'asset'}">${debt ? '-' : ''}${fmtMoney(it.amount)}</div>
       </div>
-      <div class="special-amount ${signCls}">${it.kind === 'debt' ? '-' : ''}${fmtMoney(it.amount)}</div>
     </div>`;
 }
 
-function renderExpenseList(expenses) {
-  // Group by date
+/* Merge expenses + incomes into one ledger, newest first. */
+function mergedRecords() {
+  const exp = (state.accounting.expenses || []).map(e => ({ ...e, _kind: 'expense' }));
+  const inc = (state.accounting.incomes || []).map(i => ({ ...i, _kind: 'income' }));
+  return [...exp, ...inc].sort((a, b) =>
+    a.date !== b.date ? (a.date < b.date ? 1 : -1) : ((b.id || 0) - (a.id || 0)));
+}
+
+function renderLedger(records) {
   const groups = {};
-  for (const e of expenses) {
-    (groups[e.date] = groups[e.date] || []).push(e);
-  }
+  for (const r of records) (groups[r.date] = groups[r.date] || []).push(r);
   const dates = Object.keys(groups).sort().reverse();
   return dates.map(date => {
-    const dayTotal = groups[date].reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const net = groups[date].reduce((s, r) =>
+      s + (r._kind === 'income' ? (Number(r.amount) || 0) : -(Number(r.amount) || 0)), 0);
     return `
-      <div class="expense-day-group">
-        <div class="expense-day-head">
+      <div class="ledger-day">
+        <div class="ledger-day-head">
           <span>${fmtDateLabel(date)}</span>
-          <span class="expense-day-total">-${fmtMoney(dayTotal)}</span>
+          <span class="ledger-day-net ${net < 0 ? 'neg' : 'pos'}">${fmtSigned(net)}</span>
         </div>
-        ${groups[date].map(e => `
-          <div class="expense-item" data-act="acct-edit-expense" data-id="${e.id}">
-            <div class="expense-cat-badge">${(()=>{ const ic=cat1Icon(e.cat1); return ic ? utils.esc(ic)+' ' : ''; })()}${utils.esc(e.cat1 || '其他')}</div>
-            <div class="expense-info">
-              <div class="expense-title">${utils.esc(e.info || e.cat2 || e.cat1 || '消费')}</div>
-              <div class="expense-sub">${utils.esc([e.cat1, e.cat2].filter(Boolean).join(' · '))}</div>
-            </div>
-            <div class="expense-amount">-${fmtMoney(e.amount)}</div>
-          </div>
-        `).join('')}
+        ${groups[date].map(renderLedgerRow).join('')}
       </div>`;
   }).join('');
 }
 
-/* SVG line chart for the balance series. Auto-scales to min/max with padding. */
+function renderLedgerRow(r) {
+  if (r._kind === 'income') {
+    const ic = incIcon(r.category);
+    return `
+      <div class="ledger-row" data-act="acct-edit-income" data-id="${r.id}">
+        <div class="ledger-badge income">${ic ? utils.esc(ic) + ' ' : ''}${utils.esc(r.category || '收入')}</div>
+        <div class="ledger-info">
+          <div class="ledger-title">${utils.esc(r.info || r.category || '收入')}</div>
+          <div class="ledger-sub">收入</div>
+        </div>
+        <div class="ledger-amt pos">+${fmtMoney(r.amount)}</div>
+      </div>`;
+  }
+  const ic = cat1Icon(r.cat1);
+  return `
+    <div class="ledger-row" data-act="acct-edit-expense" data-id="${r.id}">
+      <div class="ledger-badge">${ic ? utils.esc(ic) + ' ' : ''}${utils.esc(r.cat1 || '其他')}</div>
+      <div class="ledger-info">
+        <div class="ledger-title">${utils.esc(r.info || r.cat2 || r.cat1 || '消费')}</div>
+        <div class="ledger-sub">${utils.esc([r.cat1, r.cat2].filter(Boolean).join(' · '))}</div>
+      </div>
+      <div class="ledger-amt">-${fmtMoney(r.amount)}</div>
+    </div>`;
+}
+
+/* Full-width SVG line chart. preserveAspectRatio="none" lets it stretch to
+   any width; non-scaling-stroke keeps the line crisp when stretched. */
 function renderBalanceChart(series) {
   if (!series || series.length < 2) {
-    return `<div class="acct-chart-empty">余额趋势<br><span>记录消费后显示</span></div>`;
+    return `<div class="acct-chart-empty">余额趋势 · 记录后显示</div>`;
   }
-  const W = 240, H = 96, padX = 8, padY = 14;
+  const W = 600, H = 88, padX = 4, padY = 12;
   const vals = series.map(p => p.amount);
   let min = Math.min(...vals), max = Math.max(...vals);
   if (min === max) { min -= 1; max += 1; }
@@ -971,8 +989,6 @@ function renderBalanceChart(series) {
   const pts = series.map((p, i) => [x(i), y(p.amount)]);
   const linePath = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
   const areaPath = `${linePath} L${pts[n-1][0].toFixed(1)},${H-padY} L${pts[0][0].toFixed(1)},${H-padY} Z`;
-  const last = series[n - 1];
-  const lastNeg = last.amount < 0;
 
   return `
     <div class="acct-chart">
@@ -985,10 +1001,9 @@ function renderBalanceChart(series) {
         </defs>
         <path d="${areaPath}" fill="url(#acct-grad)"/>
         <path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="2"
-              stroke-linejoin="round" stroke-linecap="round"/>
-        <circle cx="${pts[n-1][0].toFixed(1)}" cy="${pts[n-1][1].toFixed(1)}" r="3" fill="var(--accent)"/>
+              vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
       </svg>
-      <div class="acct-chart-caption">近 ${n} 天 · 最高 ${fmtMoney(max)} / 最低 ${fmtMoney(min)}</div>
+      <div class="acct-chart-caption">近 ${n} 天 · 高 ${fmtMoney(max)} / 低 ${fmtMoney(min)}</div>
     </div>`;
 }
 
@@ -2290,9 +2305,10 @@ function bindGlobalEvents() {
       case 'view-main':     switchView('main');     break;
       // ── Accounting mode ──
       case 'toggle-mode':       await toggleAppMode(); break;
-      case 'acct-add-expense':  openExpenseModal(null); break;
-      case 'acct-edit-expense': openExpenseModal(el.dataset.id); break;
-      case 'acct-cal-add':      openExpenseModal(null, el.dataset.date); break;
+      case 'acct-add-expense':  openEntryModal('expense', null); break;
+      case 'acct-edit-expense': openEntryModal('expense', el.dataset.id); break;
+      case 'acct-edit-income':  openEntryModal('income', el.dataset.id); break;
+      case 'acct-cal-add':      openEntryModal('expense', null, el.dataset.date); break;
       case 'acct-add-special':  openSpecialModal(null); break;
       case 'acct-edit-special': openSpecialModal(el.dataset.id); break;
       case 'acct-toggle-special': await toggleSpecialItem(el.dataset.id); break;
@@ -4169,26 +4185,32 @@ async function toggleCompleteEditing(newCompleted) {
 /* ═══════════════════════════════════════════════════════════════════
    Accounting modals — add/edit expense & special item
    ═══════════════════════════════════════════════════════════════════ */
-function openExpenseModal(id, presetDate) {
+/* Entry modal — records both 支出 (expense) and 收入 (income) via a type
+   toggle. type: 'expense' | 'income'. */
+function openEntryModal(type, id, presetDate) {
   let form;
-  if (id) {
+  if (type === 'income' && id) {
+    const r = state.accounting.incomes.find(x => x.id == id);
+    if (!r) return;
+    form = { type: 'income', id: r.id, info: r.info || '', category: r.category || '', amount: r.amount, date: r.date, cat1: '', cat2: '' };
+  } else if (id) {
     const e = state.accounting.expenses.find(x => x.id == id);
     if (!e) return;
-    form = { id: e.id, info: e.info || '', cat1: e.cat1 || '', cat2: e.cat2 || '', amount: e.amount, date: e.date };
+    form = { type: 'expense', id: e.id, info: e.info || '', cat1: e.cat1 || '', cat2: e.cat2 || '', amount: e.amount, date: e.date, category: '' };
   } else {
-    const cats = expenseCats();
-    const firstCat = Object.keys(cats)[0] || '';
-    form = { id: null, info: '', cat1: firstCat, cat2: '', amount: '', date: presetDate || isoToday() };
+    const firstExp = Object.keys(expenseCats())[0] || '';
+    const firstInc = (incomeCats()[0] || {}).name || '';
+    form = { type: type || 'expense', id: null, info: '', cat1: firstExp, cat2: '', category: firstInc, amount: '', date: presetDate || isoToday() };
   }
-  state.expenseForm = form;
+  state.entryForm = form;
   state.specialForm = null;
   state.editing = null;
-  renderExpenseModal();
+  renderEntryModal();
   document.getElementById('edit-modal').classList.remove('hidden');
 }
 
-function syncExpenseInputs() {
-  const f = state.expenseForm;
+function syncEntryInputs() {
+  const f = state.entryForm;
   if (!f) return;
   const amt = document.getElementById('exp-amount');
   const info = document.getElementById('exp-info');
@@ -4198,25 +4220,28 @@ function syncExpenseInputs() {
   if (date) f.date = date.value;
 }
 
-function renderExpenseModal() {
+function renderEntryModal() {
   const card = document.querySelector('#edit-modal .modal-card');
-  const f = state.expenseForm;
+  const f = state.entryForm;
   if (!f) { card.innerHTML = ''; return; }
-  const cats = expenseCats();
-  const cat1Keys = Object.keys(cats);
-  const cat2List = (cats[f.cat1] || {}).subs || [];
+  const isInc = f.type === 'income';
   const chipLabel = (icon, name) => `${icon ? utils.esc(icon) + ' ' : ''}${utils.esc(name)}`;
-  card.innerHTML = `
-    <div class="modal-header">
-      <div class="modal-title">${f.id ? '编辑消费' : '记一笔消费'}</div>
-      <button class="icon-btn" data-act="close-acct-modal" title="关闭">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="exp-amount-wrap">
-        <span class="exp-amount-sym">${currencySym()}</span>
-        <input type="number" inputmode="decimal" step="0.01" class="exp-amount-input" id="exp-amount"
-               value="${f.amount}" placeholder="0.00" autocomplete="off">
-      </div>
+
+  let catSection;
+  if (isInc) {
+    const incs = incomeCats();
+    catSection = `
+      <div>
+        <div class="modal-field-label">收入分类</div>
+        <div class="cat-chip-row">
+          ${incs.map(c => `<button class="cat-chip ${f.category===c.name?'active':''}" data-act="inc-set-cat" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('') || '<span style="font-size:12px;color:var(--text-tertiary)">在设置里添加收入分类</span>'}
+        </div>
+      </div>`;
+  } else {
+    const cats = expenseCats();
+    const cat1Keys = Object.keys(cats);
+    const cat2List = (cats[f.cat1] || {}).subs || [];
+    catSection = `
       <div>
         <div class="modal-field-label">一级分类</div>
         <div class="cat-chip-row">
@@ -4229,10 +4254,29 @@ function renderExpenseModal() {
         <div class="cat-chip-row">
           ${cat2List.map(c => `<button class="cat-chip sub ${f.cat2===c.name?'active':''}" data-act="exp-set-cat2" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('')}
         </div>
+      </div>` : ''}`;
+  }
+
+  card.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">${f.id ? '编辑' : '记一笔'}</div>
+      <button class="icon-btn" data-act="close-acct-modal" title="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      ${!f.id ? `
+      <div class="entry-type-toggle">
+        <button class="${!isInc?'active':''}" data-act="entry-set-type" data-type="expense">支出</button>
+        <button class="${isInc?'active':''}" data-act="entry-set-type" data-type="income">收入</button>
       </div>` : ''}
+      <div class="exp-amount-wrap ${isInc?'income':''}">
+        <span class="exp-amount-sym">${isInc?'+':'-'}${currencySym()}</span>
+        <input type="number" inputmode="decimal" step="0.01" class="exp-amount-input" id="exp-amount"
+               value="${f.amount}" placeholder="0.00" autocomplete="off">
+      </div>
+      ${catSection}
       <div>
         <div class="modal-field-label">具体信息</div>
-        <input type="text" class="modal-input" id="exp-info" value="${utils.esc(f.info)}" placeholder="如：和朋友吃饭" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input type="text" class="modal-input" id="exp-info" value="${utils.esc(f.info)}" placeholder="${isInc?'如：六月工资':'如：和朋友吃饭'}" autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
       <div>
         <div class="modal-field-label">日期</div>
@@ -4249,26 +4293,32 @@ function renderExpenseModal() {
   setTimeout(() => document.getElementById('exp-amount')?.focus(), 50);
 }
 
-async function saveExpense() {
-  syncExpenseInputs();
-  const f = state.expenseForm;
+async function saveEntry() {
+  syncEntryInputs();
+  const f = state.entryForm;
   const amount = parseFloat(f.amount);
   if (!amount || amount <= 0) { alert('请输入有效金额'); return; }
-  const payload = { info: f.info, cat1: f.cat1, cat2: f.cat2, amount, date: f.date };
-  if (f.id) await api.put(`/expenses/${f.id}`, payload);
-  else await api.post('/expenses', payload);
-  state.expenseForm = null;
+  if (f.type === 'income') {
+    const payload = { info: f.info, category: f.category, amount, date: f.date };
+    if (f.id) await api.put(`/incomes/${f.id}`, payload);
+    else await api.post('/incomes', payload);
+  } else {
+    const payload = { info: f.info, cat1: f.cat1, cat2: f.cat2, amount, date: f.date };
+    if (f.id) await api.put(`/expenses/${f.id}`, payload);
+    else await api.post('/expenses', payload);
+  }
+  state.entryForm = null;
   document.getElementById('edit-modal').classList.add('hidden');
   await refreshAccounting();
   render();
 }
 
-async function deleteExpenseRecord() {
-  const f = state.expenseForm;
+async function deleteEntry() {
+  const f = state.entryForm;
   if (!f || !f.id) return;
-  if (!confirm('确定删除这条消费记录？')) return;
-  await api.del(`/expenses/${f.id}`);
-  state.expenseForm = null;
+  if (!confirm('确定删除这条记录？')) return;
+  await api.del(`/${f.type === 'income' ? 'incomes' : 'expenses'}/${f.id}`);
+  state.entryForm = null;
   document.getElementById('edit-modal').classList.add('hidden');
   await refreshAccounting();
   render();
@@ -4284,7 +4334,7 @@ function openSpecialModal(id) {
     form = { id: null, name: '', amount: '', kind: 'asset' };
   }
   state.specialForm = form;
-  state.expenseForm = null;
+  state.entryForm = null;
   state.editing = null;
   renderSpecialModal();
   document.getElementById('edit-modal').classList.remove('hidden');
@@ -4372,8 +4422,8 @@ document.getElementById('edit-modal').addEventListener('click', async (e) => {
   const act = el.dataset.act;
   switch (act) {
     case 'close-modal':
-      if (state.expenseForm || state.specialForm) {
-        state.expenseForm = null;
+      if (state.entryForm || state.specialForm) {
+        state.entryForm = null;
         state.specialForm = null;
         document.getElementById('edit-modal').classList.add('hidden');
       } else if (state.inlineEdit && state.inlineEdit.mode === 'popup') {
@@ -4414,25 +4464,35 @@ document.getElementById('edit-modal').addEventListener('click', async (e) => {
         });
       }
       break;
-    // ── Accounting modal actions ──
+    // ── Accounting entry modal actions ──
     case 'close-acct-modal':
-      state.expenseForm = null;
+      state.entryForm = null;
       state.specialForm = null;
       document.getElementById('edit-modal').classList.add('hidden');
       break;
+    case 'entry-set-type':
+      syncEntryInputs();
+      state.entryForm.type = el.dataset.type;
+      renderEntryModal();
+      break;
+    case 'inc-set-cat':
+      syncEntryInputs();
+      state.entryForm.category = el.dataset.c;
+      renderEntryModal();
+      break;
     case 'exp-set-cat1':
-      syncExpenseInputs();
-      state.expenseForm.cat1 = el.dataset.c;
-      state.expenseForm.cat2 = '';   // reset secondary when primary changes
-      renderExpenseModal();
+      syncEntryInputs();
+      state.entryForm.cat1 = el.dataset.c;
+      state.entryForm.cat2 = '';   // reset secondary when primary changes
+      renderEntryModal();
       break;
     case 'exp-set-cat2':
-      syncExpenseInputs();
-      state.expenseForm.cat2 = (state.expenseForm.cat2 === el.dataset.c) ? '' : el.dataset.c;
-      renderExpenseModal();
+      syncEntryInputs();
+      state.entryForm.cat2 = (state.entryForm.cat2 === el.dataset.c) ? '' : el.dataset.c;
+      renderEntryModal();
       break;
-    case 'exp-save':   await saveExpense(); break;
-    case 'exp-delete': await deleteExpenseRecord(); break;
+    case 'exp-save':   await saveEntry(); break;
+    case 'exp-delete': await deleteEntry(); break;
     case 'sp-set-kind':
       syncSpecialInputs();
       state.specialForm.kind = el.dataset.kind;
