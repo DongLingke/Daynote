@@ -2863,20 +2863,20 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .mode-switch.is-acct .mode-switch-thumb { transform: translateX(32px); }
 
 /* ── Layout: desktop two-column / mobile stacked ── */
-/* ── Concept A layout: vertical hierarchy ── */
+/* ── Layout: 总览带 + 分隔线 + 左右两列 ── */
 .acct-home {
   display: flex; flex-direction: column;
   flex: 1; min-height: 0; overflow: hidden;
   padding: 8px 16px 12px;
-  gap: 12px;
 }
 
-/* ── 总览带: balance + full-width chart ── */
+/* ── 总览带: 余额(1/3) + 折线图(2/3) ── */
 .acct-overview {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 18px;
+  padding-bottom: 10px;
 }
-.acct-balance-main { flex-shrink: 0; }
+.acct-balance-main { flex: 0 0 32%; min-width: 0; }
 .acct-balance-label {
   font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em;
   text-transform: uppercase; color: var(--text-tertiary);
@@ -2887,6 +2887,15 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
   color: var(--text-primary); font-variant-numeric: tabular-nums;
 }
 .acct-balance-value.neg { color: var(--danger, #e5484d); }
+.acct-balance-stats {
+  display: flex; flex-direction: column; gap: 1px;
+  margin-top: 7px; font-size: 0.72rem; color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.acct-balance-stats b { font-weight: 600; }
+.acct-balance-stats .exp { color: var(--text-secondary); }
+.acct-balance-stats .pos { color: #30a46c; }
+.acct-balance-stats .neg { color: var(--danger, #e5484d); }
 .acct-chart-wrap { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; }
 .acct-chart { width: 100%; }
 .acct-chart-svg { width: 100%; height: 84px; display: block; }
@@ -2899,76 +2908,58 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
   font-size: 0.78rem; color: var(--text-tertiary);
 }
 
-/* ── 统计小卡 ── */
-.acct-stats {
-  flex-shrink: 0;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+/* ── 分隔线 ── */
+.acct-home-divider {
+  flex-shrink: 0; height: 1px; background: var(--divider); margin: 0 -16px;
 }
-.acct-stat {
-  background: var(--item-glass); border: 1px solid var(--item-border);
-  border-radius: var(--radius-sm); padding: 7px 10px;
-}
-.acct-stat-label { font-size: 0.66rem; color: var(--text-tertiary); }
-.acct-stat-val {
-  font-size: 0.98rem; font-weight: 600; color: var(--text-primary);
-  font-variant-numeric: tabular-nums; margin-top: 1px;
-}
-.acct-stat-val.pos { color: #30a46c; }
-.acct-stat-val.neg { color: var(--danger, #e5484d); }
 
-/* ── 账户卡片横排 ── */
-.acct-accounts-strip {
-  flex-shrink: 0;
-  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px;
-  scrollbar-width: thin;
+/* ── 左右两列: 最近消费 | 特殊款项 ── */
+.acct-columns {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: row; overflow: hidden;
 }
-.acct-card {
-  flex: 0 0 auto; min-width: 116px; max-width: 160px;
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; border-radius: var(--radius-sm);
-  border: 1px solid var(--item-border); background: var(--item-glass);
-  transition: opacity 0.12s, border-color 0.12s;
+.acct-col {
+  min-width: 0;
+  display: flex; flex-direction: column; overflow: hidden;
 }
-.acct-card.off { opacity: 0.42; }
-.acct-card-check {
+.acct-col-feed { flex: 0 0 var(--panel-split-w, 56%); }
+.acct-col-special { flex: 1; }
+.acct-col-head {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; padding: 10px 2px 6px;
+}
+.acct-col-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; }
+
+/* ── Special item row (vertical) ── */
+.special-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px; border-radius: var(--radius-item, 10px);
+  transition: background 0.12s, opacity 0.12s;
+}
+.special-row:hover { background: var(--item-glass); }
+.special-row.off { opacity: 0.45; }
+.special-check {
   flex-shrink: 0; width: 20px; height: 20px;
   display: flex; align-items: center; justify-content: center;
   padding: 0; border-radius: 6px; border: 1.5px solid var(--item-border);
   background: transparent; color: #fff; cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
-.acct-card-check.on { background: var(--accent); border-color: var(--accent); }
-.acct-card-check svg { width: 13px; height: 13px; }
-.acct-card-body { flex: 1; min-width: 0; cursor: pointer; }
-.acct-card-name {
-  font-size: 0.8rem; color: var(--text-secondary);
+.special-check.on { background: var(--accent); border-color: var(--accent); }
+.special-check svg { width: 13px; height: 13px; }
+.special-row-body { flex: 1; min-width: 0; cursor: pointer; }
+.special-row-name {
+  font-size: 0.88rem; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.acct-card-amt {
-  font-size: 0.95rem; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 1px;
+.special-row-kind { font-size: 0.66rem; }
+.special-row-kind.asset { color: #30a46c; }
+.special-row-kind.debt { color: #e5484d; }
+.special-row-amt {
+  flex-shrink: 0; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums;
 }
-.acct-card-amt.asset { color: var(--text-primary); }
-.acct-card-amt.debt { color: #e5484d; }
-.acct-card-add {
-  cursor: pointer; color: var(--text-tertiary);
-  border-style: dashed; justify-content: center; min-width: 100px;
-}
-.acct-card-add:hover { color: var(--accent); border-color: var(--accent); }
-.acct-card-add-plus { display: flex; }
-.acct-card-add-plus svg { width: 16px; height: 16px; }
-.acct-card-add-txt { font-size: 0.78rem; }
-
-/* ── 全宽流水 ── */
-.acct-feed {
-  flex: 1; min-height: 0;
-  display: flex; flex-direction: column;
-  border-top: 1px solid var(--divider); padding-top: 6px;
-}
-.acct-feed-head {
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0; padding: 2px 2px 6px;
-}
-.acct-feed-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.special-row-amt.asset { color: var(--text-primary); }
+.special-row-amt.debt { color: #e5484d; }
 
 .ledger-day { margin-bottom: 10px; }
 .ledger-day-head {
@@ -3139,11 +3130,16 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .ce-emoji-none { font-size: 0.72rem; color: var(--text-tertiary); border: 1px dashed var(--item-border); }
 
 @media (max-width: 768px) {
-  .acct-home { padding: 6px 12px 10px; gap: 10px; }
+  .acct-home { padding: 6px 12px 10px; }
   /* Stack balance above the chart on narrow screens */
-  .acct-overview { flex-direction: column; align-items: stretch; gap: 6px; }
+  .acct-overview { flex-direction: column; align-items: stretch; gap: 8px; }
+  .acct-balance-main { flex: 0 0 auto; }
   .acct-balance-value { font-size: 1.85rem; }
   .acct-chart-svg { height: 64px; }
-  /* 4 stat cards → 2×2 grid */
-  .acct-stats { grid-template-columns: repeat(2, 1fr); }
+  .acct-home-divider { margin: 0 -12px; }
+  /* Stack the two columns vertically; hide the splitter */
+  .acct-columns { flex-direction: column; overflow-y: auto; }
+  .acct-col-feed, .acct-col-special { flex: 0 0 auto; }
+  .acct-col-feed { min-height: 200px; }
+  .acct-columns .panel-splitter { display: none; }
 }

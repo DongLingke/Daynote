@@ -848,9 +848,12 @@ function renderTodoInlineEditor(data) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   View – Accounting main (记账主页) — Concept A
-   Vertical hierarchy: 总览带(余额 + 全宽折线图) → 统计小卡 →
-   账户卡片横排 → 全宽流水(支出/收入). Responsive at any width.
+   View – Accounting main (记账主页)
+   ┌──────────────────────────────────────┐
+   │  当前余额 (1/3)   │   折线图 (2/3)      │  总览带
+   ├──────────────────────────────────────┤  分隔线
+   │  最近消费         │   特殊款项          │  左右两列
+   └──────────────────────────────────────┘
    ═══════════════════════════════════════════════════════════════════ */
 function renderAccountingMain() {
   const sm = state.accounting.summary || { current_balance: 0, today_expense: 0, today_income: 0, month_expense: 0, month_income: 0, series: [] };
@@ -862,42 +865,49 @@ function renderAccountingMain() {
       <div class="acct-balance-main">
         <div class="acct-balance-label">当前余额</div>
         <div class="acct-balance-value ${sm.current_balance < 0 ? 'neg' : ''}">${fmtMoney(sm.current_balance)}</div>
+        <div class="acct-balance-stats">
+          <span>今日 <b class="exp">-${fmtMoney(sm.today_expense)}</b>${sm.today_income ? ` <b class="pos">+${fmtMoney(sm.today_income)}</b>` : ''}</span>
+          <span>本月结余 <b class="${monthNet < 0 ? 'neg' : 'pos'}">${fmtSigned(monthNet)}</b></span>
+        </div>
       </div>
       <div class="acct-chart-wrap">${renderBalanceChart(sm.series)}</div>
     </div>`;
 
-  const stat = (label, val, cls = '') =>
-    `<div class="acct-stat"><div class="acct-stat-label">${label}</div><div class="acct-stat-val ${cls}">${val}</div></div>`;
-  const stats = `
-    <div class="acct-stats">
-      ${stat('今日支出', sm.today_expense ? '-' + fmtMoney(sm.today_expense) : fmtMoney(0))}
-      ${stat('今日收入', sm.today_income ? '+' + fmtMoney(sm.today_income) : fmtMoney(0), 'pos')}
-      ${stat('本月支出', '-' + fmtMoney(sm.month_expense))}
-      ${stat('本月结余', fmtSigned(monthNet), monthNet < 0 ? 'neg' : 'pos')}
-    </div>`;
-
-  const accounts = `
-    <div class="acct-accounts-strip">
-      ${items.map(renderAccountCard).join('')}
-      <button class="acct-card acct-card-add" data-act="acct-add-special" title="添加款项" aria-label="添加款项">
-        <span class="acct-card-add-plus">${ICONS.plus}</span><span class="acct-card-add-txt">添加款项</span>
-      </button>
-    </div>`;
-
   const records = mergedRecords();
-  const feed = `
-    <div class="acct-feed">
-      <div class="acct-feed-head">
-        <span class="panel-head-title">最近记录</span>
+  const feedCol = `
+    <div class="acct-col acct-col-feed">
+      <div class="acct-col-head">
+        <span class="panel-head-title">最近消费</span>
         <button class="panel-add-btn" data-act="acct-add-expense" title="记一笔" aria-label="记一笔">${ICONS.plus}</button>
       </div>
-      <div class="acct-feed-scroll">
+      <div class="acct-col-scroll">
         ${records.length ? renderLedger(records)
-          : `<div class="empty-state"><div class="empty-emoji">🧾</div><div>还没有记录<br>点右上角 + 记一笔</div></div>`}
+          : `<div class="empty-state"><div class="empty-emoji">🧾</div><div>还没有记录<br>点 + 记一笔</div></div>`}
       </div>
     </div>`;
 
-  return `<div class="acct-home">${overview}${stats}${accounts}${feed}</div>`;
+  const specialCol = `
+    <div class="acct-col acct-col-special">
+      <div class="acct-col-head">
+        <span class="panel-head-title">特殊款项</span>
+        <button class="panel-add-btn" data-act="acct-add-special" title="添加款项" aria-label="添加款项">${ICONS.plus}</button>
+      </div>
+      <div class="acct-col-scroll">
+        ${items.length ? items.map(renderSpecialRow).join('')
+          : `<div class="empty-state" style="font-size:12px"><div class="empty-emoji">🏦</div><div>还没有特殊款项<br>点 + 添加账户 / 贷款</div></div>`}
+      </div>
+    </div>`;
+
+  return `
+    <div class="acct-home">
+      ${overview}
+      <div class="acct-home-divider"></div>
+      <div class="acct-columns">
+        ${feedCol}
+        <div class="panel-splitter" data-orient="v" data-skey="card_split" title="拖动调整分区比例"></div>
+        ${specialCol}
+      </div>
+    </div>`;
 }
 
 /* '+¥12' / '-¥12' / '¥0' with an explicit sign for non-zero. */
@@ -907,16 +917,18 @@ function fmtSigned(n) {
 }
 function incIcon(name) { const it = incomeCats().find(x => x.name === name); return it && it.icon ? it.icon : ''; }
 
-function renderAccountCard(it) {
+/* A special item as a vertical row (checkbox + name/kind + amount). */
+function renderSpecialRow(it) {
   const debt = it.kind === 'debt';
   return `
-    <div class="acct-card ${it.checked ? '' : 'off'} ${debt ? 'debt' : 'asset'}" data-special-id="${it.id}">
-      <button class="acct-card-check ${it.checked ? 'on' : ''}" data-act="acct-toggle-special" data-id="${it.id}"
+    <div class="special-row ${it.checked ? '' : 'off'}" data-special-id="${it.id}">
+      <button class="special-check ${it.checked ? 'on' : ''}" data-act="acct-toggle-special" data-id="${it.id}"
               title="计入余额" aria-label="计入余额">${it.checked ? ICONS.check : ''}</button>
-      <div class="acct-card-body" data-act="acct-edit-special" data-id="${it.id}">
-        <div class="acct-card-name">${utils.esc(it.name || '未命名')}</div>
-        <div class="acct-card-amt ${debt ? 'debt' : 'asset'}">${debt ? '-' : ''}${fmtMoney(it.amount)}</div>
+      <div class="special-row-body" data-act="acct-edit-special" data-id="${it.id}">
+        <div class="special-row-name">${utils.esc(it.name || '未命名')}</div>
+        <div class="special-row-kind ${debt ? 'debt' : 'asset'}">${debt ? '负债' : '资产'}</div>
       </div>
+      <div class="special-row-amt ${debt ? 'debt' : 'asset'}">${debt ? '-' : ''}${fmtMoney(it.amount)}</div>
     </div>`;
 }
 
