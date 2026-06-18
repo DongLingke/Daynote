@@ -866,7 +866,7 @@ function renderAccountingMain() {
         <div class="acct-balance-label">当前余额</div>
         <div class="acct-balance-value ${sm.current_balance < 0 ? 'neg' : ''}">${fmtMoney(sm.current_balance)}</div>
         <div class="acct-balance-stats">
-          <span>今日 <b class="exp">-${fmtMoney(sm.today_expense)}</b>${sm.today_income ? ` <b class="pos">+${fmtMoney(sm.today_income)}</b>` : ''}</span>
+          <span>本月支出 <b class="exp">-${fmtMoney(sm.month_expense)}</b></span>
           <span>本月结余 <b class="${monthNet < 0 ? 'neg' : 'pos'}">${fmtSigned(monthNet)}</b></span>
         </div>
       </div>
@@ -924,6 +924,33 @@ function fmtSigned(n) {
   return (v > 0 ? '+' : v < 0 ? '-' : '') + fmtMoney(Math.abs(v));
 }
 function incIcon(name) { const it = incomeCats().find(x => x.name === name); return it && it.icon ? it.icon : ''; }
+
+/* Flatten 一级/二级 into a single "一级 - 二级" pick list, most-used first.
+   Usage is counted from existing expense records; unused combos follow in
+   their configured order. cat1s without sub-categories appear as just "一级". */
+function flatCats() {
+  const cats = expenseCats();
+  const counts = {};
+  for (const e of (state.accounting.expenses || [])) {
+    const k = (e.cat1 || '') + '|' + (e.cat2 || '');
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  const out = [];
+  let order = 0;
+  for (const [c1, v] of Object.entries(cats)) {
+    const subs = v.subs || [];
+    if (subs.length) {
+      for (const s of subs) out.push({ cat1: c1, cat2: s.name, icon: s.icon || v.icon || '', label: `${c1} - ${s.name}`, order: order++ });
+    } else {
+      out.push({ cat1: c1, cat2: '', icon: v.icon || '', label: c1, order: order++ });
+    }
+  }
+  out.sort((a, b) => {
+    const ca = counts[a.cat1 + '|' + a.cat2] || 0, cb = counts[b.cat1 + '|' + b.cat2] || 0;
+    return cb !== ca ? cb - ca : a.order - b.order;
+  });
+  return out;
+}
 
 /* A special item as a vertical row (checkbox + name/kind + amount). */
 function renderSpecialRow(it) {
@@ -1636,7 +1663,7 @@ function renderTabInterface() {
             <div class="emoji-slot-label">${slot.label}</div>
             <div class="emoji-current" data-act="open-emoji" data-k="${slot.key}">${utils.esc(s[slot.key])}</div>
             <div class="emoji-grid-popup" data-popup="${slot.key}">
-              ${CFG.EMOJI_PICKER.map(e => `<div class="emoji-opt" data-act="pick-emoji" data-k="${slot.key}" data-e="${utils.esc(e)}">${e}</div>`).join('')}
+              ${((window.EMOJI_DATA && window.EMOJI_DATA.length) ? window.EMOJI_DATA : [{ name: '', emojis: CFG.EMOJI_PICKER }]).map(cat => `${cat.name ? `<div class="emoji-cat">${utils.esc(cat.name)}</div>` : ''}${cat.emojis.map(e => `<div class="emoji-opt" data-act="pick-emoji" data-k="${slot.key}" data-e="${utils.esc(e)}">${e}</div>`).join('')}`).join('')}
             </div>
           </div>
         `).join('')}
@@ -2351,10 +2378,8 @@ function bindGlobalEvents() {
         syncEntryInputs(); state.entryForm.type = el.dataset.type; renderAcctEntry(); break;
       case 'inc-set-cat':
         syncEntryInputs(); state.entryForm.category = el.dataset.c; renderAcctEntry(); break;
-      case 'exp-set-cat1':
-        syncEntryInputs(); state.entryForm.cat1 = el.dataset.c; state.entryForm.cat2 = ''; renderAcctEntry(); break;
-      case 'exp-set-cat2':
-        syncEntryInputs(); state.entryForm.cat2 = (state.entryForm.cat2 === el.dataset.c) ? '' : el.dataset.c; renderAcctEntry(); break;
+      case 'exp-set-flatcat':
+        syncEntryInputs(); state.entryForm.cat1 = el.dataset.c1; state.entryForm.cat2 = el.dataset.c2; renderAcctEntry(); break;
       case 'exp-save':           await saveEntry(); break;
       case 'exp-delete':         await deleteEntry(); break;
       case 'close-acct-modal':   cancelAcctEntry(); break;
@@ -2810,11 +2835,15 @@ function renameKey(obj, oldK, newK) {
 /* Emoji grid panel for a target key (shown inline when active). */
 function ceEmojiGrid(targetKey, label) {
   if (_catUI.emojiFor !== targetKey) return '';
+  const data = (window.EMOJI_DATA && window.EMOJI_DATA.length)
+    ? window.EMOJI_DATA : [{ name: '', emojis: CFG.EMOJI_PICKER }];
+  const tk = utils.esc(targetKey);
   return `<div class="ce-emoji-grid">
-    <div class="ce-emoji-label">${utils.esc(label)} 的图标</div>
-    <div class="ce-emoji-opts">
-      <button class="ce-emoji-opt ce-emoji-none" data-act="ce-clear" data-target="${utils.esc(targetKey)}" title="无图标">无</button>
-      ${CFG.EMOJI_PICKER.map(e => `<button class="ce-emoji-opt" data-act="ce-pick" data-target="${utils.esc(targetKey)}" data-e="${utils.esc(e)}">${e}</button>`).join('')}
+    <div class="ce-emoji-label">${utils.esc(label)} 的图标
+      <button class="ce-emoji-opt ce-emoji-none" data-act="ce-clear" data-target="${tk}" title="无图标">无</button></div>
+    <div class="ce-emoji-scroll">
+      ${data.map(cat => `${cat.name ? `<div class="ce-emoji-cat">${utils.esc(cat.name)}</div>` : ''}
+        <div class="ce-emoji-opts">${cat.emojis.map(e => `<button class="ce-emoji-opt" data-act="ce-pick" data-target="${tk}" data-e="${utils.esc(e)}">${e}</button>`).join('')}</div>`).join('')}
     </div>
   </div>`;
 }
@@ -4250,9 +4279,9 @@ function openEntryModal(type, id, presetDate) {
     if (!e) return;
     form = { type: 'expense', id: e.id, info: e.info || '', cat1: e.cat1 || '', cat2: e.cat2 || '', amount: e.amount, date: e.date, category: '' };
   } else {
-    const firstExp = Object.keys(expenseCats())[0] || '';
+    const top = flatCats()[0];
     const firstInc = (incomeCats()[0] || {}).name || '';
-    form = { type: type || 'expense', id: null, info: '', cat1: firstExp, cat2: '', category: firstInc, amount: '', date: presetDate || isoToday() };
+    form = { type: type || 'expense', id: null, info: '', cat1: top ? top.cat1 : '', cat2: top ? top.cat2 : '', category: firstInc, amount: '', date: presetDate || isoToday() };
   }
   state.entryForm = form;
   state.specialForm = null;
@@ -4285,13 +4314,9 @@ function acctEntryFormInner() {
     catSection = `<div class="acct-inline-field"><div class="modal-field-label">收入分类</div>
       <div class="cat-chip-row">${incs.map(c => `<button class="cat-chip ${f.category===c.name?'active':''}" data-act="inc-set-cat" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('') || '<span style="font-size:12px;color:var(--text-tertiary)">在设置里添加收入分类</span>'}</div></div>`;
   } else {
-    const cats = expenseCats();
-    const cat1Keys = Object.keys(cats);
-    const cat2List = (cats[f.cat1] || {}).subs || [];
-    catSection = `<div class="acct-inline-field"><div class="modal-field-label">一级分类</div>
-      <div class="cat-chip-row">${cat1Keys.map(c => `<button class="cat-chip ${f.cat1===c?'active':''}" data-act="exp-set-cat1" data-c="${utils.esc(c)}">${chipLabel(cats[c].icon, c)}</button>`).join('')}</div></div>
-      ${cat2List.length ? `<div class="acct-inline-field"><div class="modal-field-label">二级分类</div>
-      <div class="cat-chip-row">${cat2List.map(c => `<button class="cat-chip sub ${f.cat2===c.name?'active':''}" data-act="exp-set-cat2" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('')}</div></div>` : ''}`;
+    const flats = flatCats();
+    catSection = `<div class="acct-inline-field"><div class="modal-field-label">品类</div>
+      <div class="cat-chip-row">${flats.map(fc => `<button class="cat-chip ${f.cat1===fc.cat1 && f.cat2===fc.cat2 ? 'active' : ''}" data-act="exp-set-flatcat" data-c1="${utils.esc(fc.cat1)}" data-c2="${utils.esc(fc.cat2)}">${chipLabel(fc.icon, fc.label)}</button>`).join('') || '<span style="font-size:12px;color:var(--text-tertiary)">在设置里添加分类</span>'}</div></div>`;
   }
 
   return `
