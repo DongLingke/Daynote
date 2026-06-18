@@ -873,16 +873,23 @@ function renderAccountingMain() {
       <div class="acct-chart-wrap">${renderBalanceChart(sm.series)}</div>
     </div>`;
 
-  const records = mergedRecords();
+  // Hide the row currently being edited inline (it's shown in the form instead)
+  const ef = state.entryForm;
+  const records = mergedRecords().filter(r =>
+    !(ef && ef.id && ef.type === r._kind && r.id == ef.id));
+  const sf = state.specialForm;
+  const sitems = items.filter(it => !(sf && sf.id && it.id == sf.id));
+
   const feedCol = `
     <div class="acct-col acct-col-feed">
       <div class="acct-col-head">
         <span class="panel-head-title">最近消费</span>
-        <button class="panel-add-btn" data-act="acct-add-expense" title="记一笔" aria-label="记一笔">${ICONS.plus}</button>
+        <button class="panel-add-btn ${ef && !ef.id ? 'active' : ''}" data-act="acct-add-expense" title="记一笔" aria-label="记一笔">${ICONS.plus}</button>
       </div>
       <div class="acct-col-scroll">
+        <div id="acct-entry-host">${ef ? acctEntryFormInner() : ''}</div>
         ${records.length ? renderLedger(records)
-          : `<div class="empty-state"><div class="empty-emoji">🧾</div><div>还没有记录<br>点 + 记一笔</div></div>`}
+          : (ef ? '' : `<div class="empty-state"><div class="empty-emoji">🧾</div><div>还没有记录<br>点 + 记一笔</div></div>`)}
       </div>
     </div>`;
 
@@ -890,11 +897,12 @@ function renderAccountingMain() {
     <div class="acct-col acct-col-special">
       <div class="acct-col-head">
         <span class="panel-head-title">特殊款项</span>
-        <button class="panel-add-btn" data-act="acct-add-special" title="添加款项" aria-label="添加款项">${ICONS.plus}</button>
+        <button class="panel-add-btn ${sf && !sf.id ? 'active' : ''}" data-act="acct-add-special" title="添加款项" aria-label="添加款项">${ICONS.plus}</button>
       </div>
       <div class="acct-col-scroll">
-        ${items.length ? items.map(renderSpecialRow).join('')
-          : `<div class="empty-state" style="font-size:12px"><div class="empty-emoji">🏦</div><div>还没有特殊款项<br>点 + 添加账户 / 贷款</div></div>`}
+        <div id="acct-special-host">${sf ? acctSpecialFormInner() : ''}</div>
+        ${sitems.length ? sitems.map(renderSpecialRow).join('')
+          : (sf ? '' : `<div class="empty-state" style="font-size:12px"><div class="empty-emoji">🏦</div><div>还没有特殊款项<br>点 + 添加账户 / 贷款</div></div>`)}
       </div>
     </div>`;
 
@@ -1041,6 +1049,7 @@ function renderAccountingCalendar() {
   for (const p of series) balByDate[p.date] = p.amount;
 
   return `
+    ${state.entryForm ? `<div id="acct-entry-host" class="acct-entry-host-cal">${acctEntryFormInner()}</div>` : '<div id="acct-entry-host"></div>'}
     <div class="calendar-view" style="--cal-rows:${rows};--cal-cols:${cols}">
       <div class="calendar-scroller" id="cal-scroller">
         ${pages.map(p => `
@@ -2337,6 +2346,23 @@ function bindGlobalEvents() {
       case 'acct-add-special':  openSpecialModal(null); break;
       case 'acct-edit-special': openSpecialModal(el.dataset.id); break;
       case 'acct-toggle-special': await toggleSpecialItem(el.dataset.id); break;
+      // ── Accounting inline entry form (in-column, themed) ──
+      case 'entry-set-type':
+        syncEntryInputs(); state.entryForm.type = el.dataset.type; renderAcctEntry(); break;
+      case 'inc-set-cat':
+        syncEntryInputs(); state.entryForm.category = el.dataset.c; renderAcctEntry(); break;
+      case 'exp-set-cat1':
+        syncEntryInputs(); state.entryForm.cat1 = el.dataset.c; state.entryForm.cat2 = ''; renderAcctEntry(); break;
+      case 'exp-set-cat2':
+        syncEntryInputs(); state.entryForm.cat2 = (state.entryForm.cat2 === el.dataset.c) ? '' : el.dataset.c; renderAcctEntry(); break;
+      case 'exp-save':           await saveEntry(); break;
+      case 'exp-delete':         await deleteEntry(); break;
+      case 'close-acct-modal':   cancelAcctEntry(); break;
+      case 'sp-set-kind':
+        syncSpecialInputs(); state.specialForm.kind = el.dataset.kind; renderAcctSpecial(); break;
+      case 'sp-save':            await saveSpecial(); break;
+      case 'sp-delete':          await deleteSpecial(); break;
+      case 'close-acct-special': cancelAcctSpecial(); break;
       // ── Accounting settings ──
       case 'acct-set-mode':
         if (el.dataset.mode !== state.appMode) await toggleAppMode();
@@ -4208,10 +4234,11 @@ async function toggleCompleteEditing(newCompleted) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   Accounting modals — add/edit expense & special item
+   Accounting inline entry — add/edit expense·income & special item
+   render right inside the column (no popup; inherits the card's theme).
+   The form lives in #acct-entry-host / #acct-special-host; partial
+   re-renders update only that host so typing isn't disrupted.
    ═══════════════════════════════════════════════════════════════════ */
-/* Entry modal — records both 支出 (expense) and 收入 (income) via a type
-   toggle. type: 'expense' | 'income'. */
 function openEntryModal(type, id, presetDate) {
   let form;
   if (type === 'income' && id) {
@@ -4229,9 +4256,8 @@ function openEntryModal(type, id, presetDate) {
   }
   state.entryForm = form;
   state.specialForm = null;
-  state.editing = null;
-  renderEntryModal();
-  document.getElementById('edit-modal').classList.remove('hidden');
+  render();
+  setTimeout(() => document.getElementById('exp-amount')?.focus(), 60);
 }
 
 function syncEntryInputs() {
@@ -4245,77 +4271,57 @@ function syncEntryInputs() {
   if (date) f.date = date.value;
 }
 
-function renderEntryModal() {
-  const card = document.querySelector('#edit-modal .modal-card');
+/* Inline entry form HTML (read state.entryForm). Reuses the card's themed
+   components (cat-chip / modal-input / glass-btn …) so it follows the theme. */
+function acctEntryFormInner() {
   const f = state.entryForm;
-  if (!f) { card.innerHTML = ''; return; }
+  if (!f) return '';
   const isInc = f.type === 'income';
   const chipLabel = (icon, name) => `${icon ? utils.esc(icon) + ' ' : ''}${utils.esc(name)}`;
 
   let catSection;
   if (isInc) {
     const incs = incomeCats();
-    catSection = `
-      <div>
-        <div class="modal-field-label">收入分类</div>
-        <div class="cat-chip-row">
-          ${incs.map(c => `<button class="cat-chip ${f.category===c.name?'active':''}" data-act="inc-set-cat" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('') || '<span style="font-size:12px;color:var(--text-tertiary)">在设置里添加收入分类</span>'}
-        </div>
-      </div>`;
+    catSection = `<div class="acct-inline-field"><div class="modal-field-label">收入分类</div>
+      <div class="cat-chip-row">${incs.map(c => `<button class="cat-chip ${f.category===c.name?'active':''}" data-act="inc-set-cat" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('') || '<span style="font-size:12px;color:var(--text-tertiary)">在设置里添加收入分类</span>'}</div></div>`;
   } else {
     const cats = expenseCats();
     const cat1Keys = Object.keys(cats);
     const cat2List = (cats[f.cat1] || {}).subs || [];
-    catSection = `
-      <div>
-        <div class="modal-field-label">一级分类</div>
-        <div class="cat-chip-row">
-          ${cat1Keys.map(c => `<button class="cat-chip ${f.cat1===c?'active':''}" data-act="exp-set-cat1" data-c="${utils.esc(c)}">${chipLabel(cats[c].icon, c)}</button>`).join('')}
-        </div>
-      </div>
-      ${cat2List.length ? `
-      <div>
-        <div class="modal-field-label">二级分类</div>
-        <div class="cat-chip-row">
-          ${cat2List.map(c => `<button class="cat-chip sub ${f.cat2===c.name?'active':''}" data-act="exp-set-cat2" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('')}
-        </div>
-      </div>` : ''}`;
+    catSection = `<div class="acct-inline-field"><div class="modal-field-label">一级分类</div>
+      <div class="cat-chip-row">${cat1Keys.map(c => `<button class="cat-chip ${f.cat1===c?'active':''}" data-act="exp-set-cat1" data-c="${utils.esc(c)}">${chipLabel(cats[c].icon, c)}</button>`).join('')}</div></div>
+      ${cat2List.length ? `<div class="acct-inline-field"><div class="modal-field-label">二级分类</div>
+      <div class="cat-chip-row">${cat2List.map(c => `<button class="cat-chip sub ${f.cat2===c.name?'active':''}" data-act="exp-set-cat2" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('')}</div></div>` : ''}`;
   }
 
-  card.innerHTML = `
-    <div class="modal-header">
-      <div class="modal-title">${f.id ? '编辑' : '记一笔'}</div>
-      <button class="icon-btn" data-act="close-acct-modal" title="关闭">×</button>
-    </div>
-    <div class="modal-body">
-      ${!f.id ? `
-      <div class="entry-type-toggle">
+  return `
+    <div class="acct-inline-form">
+      <div class="acct-inline-head"><span>${f.id ? '编辑' : '记一笔'}</span>
+        <button class="acct-inline-x" data-act="close-acct-modal" title="取消" aria-label="取消">×</button></div>
+      ${!f.id ? `<div class="entry-type-toggle">
         <button class="${!isInc?'active':''}" data-act="entry-set-type" data-type="expense">支出</button>
-        <button class="${isInc?'active':''}" data-act="entry-set-type" data-type="income">收入</button>
-      </div>` : ''}
+        <button class="${isInc?'active':''}" data-act="entry-set-type" data-type="income">收入</button></div>` : ''}
       <div class="exp-amount-wrap ${isInc?'income':''}">
         <span class="exp-amount-sym">${isInc?'+':'-'}${currencySym()}</span>
-        <input type="number" inputmode="decimal" step="0.01" class="exp-amount-input" id="exp-amount"
-               value="${f.amount}" placeholder="0.00" autocomplete="off">
-      </div>
+        <input type="number" inputmode="decimal" step="0.01" class="exp-amount-input" id="exp-amount" value="${f.amount}" placeholder="0.00" autocomplete="off"></div>
       ${catSection}
-      <div>
-        <div class="modal-field-label">具体信息</div>
-        <input type="text" class="modal-input" id="exp-info" value="${utils.esc(f.info)}" placeholder="${isInc?'如：六月工资':'如：和朋友吃饭'}" autocapitalize="off" autocorrect="off" spellcheck="false">
-      </div>
-      <div>
-        <div class="modal-field-label">日期</div>
-        <input type="date" class="modal-input" id="exp-date" value="${f.date}">
-      </div>
-    </div>
-    <div class="modal-footer">
-      ${f.id ? `<button class="danger-btn" data-act="exp-delete">删除</button>` : ''}
-      <div style="flex:1"></div>
-      <button class="glass-btn" data-act="close-acct-modal">取消</button>
-      <button class="glass-btn primary" data-act="exp-save">保存</button>
-    </div>
-  `;
-  setTimeout(() => document.getElementById('exp-amount')?.focus(), 50);
+      <div class="acct-inline-field"><div class="modal-field-label">具体信息</div>
+        <input type="text" class="modal-input" id="exp-info" value="${utils.esc(f.info)}" placeholder="${isInc?'如：六月工资':'如：和朋友吃饭'}" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      <div class="acct-inline-field"><div class="modal-field-label">日期</div>
+        <input type="date" class="modal-input" id="exp-date" value="${f.date}"></div>
+      <div class="acct-inline-actions">
+        ${f.id ? `<button class="danger-btn" data-act="exp-delete">删除</button>` : ''}
+        <div style="flex:1"></div>
+        <button class="glass-btn" data-act="close-acct-modal">取消</button>
+        <button class="glass-btn primary" data-act="exp-save">保存</button></div>
+    </div>`;
+}
+
+/* Partial re-render of just the entry host (keeps the ledger/chart intact). */
+function renderAcctEntry() {
+  const host = document.getElementById('acct-entry-host');
+  if (host) host.innerHTML = acctEntryFormInner();
+  if (state.entryForm) setTimeout(() => document.getElementById('exp-amount')?.focus(), 0);
 }
 
 async function saveEntry() {
@@ -4333,7 +4339,6 @@ async function saveEntry() {
     else await api.post('/expenses', payload);
   }
   state.entryForm = null;
-  document.getElementById('edit-modal').classList.add('hidden');
   await refreshAccounting();
   render();
 }
@@ -4344,11 +4349,13 @@ async function deleteEntry() {
   if (!confirm('确定删除这条记录？')) return;
   await api.del(`/${f.type === 'income' ? 'incomes' : 'expenses'}/${f.id}`);
   state.entryForm = null;
-  document.getElementById('edit-modal').classList.add('hidden');
   await refreshAccounting();
   render();
 }
 
+function cancelAcctEntry() { state.entryForm = null; render(); }
+
+// ── Special item inline form ──
 function openSpecialModal(id) {
   let form;
   if (id) {
@@ -4360,9 +4367,8 @@ function openSpecialModal(id) {
   }
   state.specialForm = form;
   state.entryForm = null;
-  state.editing = null;
-  renderSpecialModal();
-  document.getElementById('edit-modal').classList.remove('hidden');
+  render();
+  setTimeout(() => document.getElementById('sp-name')?.focus(), 60);
 }
 
 function syncSpecialInputs() {
@@ -4374,43 +4380,34 @@ function syncSpecialInputs() {
   if (amt) f.amount = amt.value;
 }
 
-function renderSpecialModal() {
-  const card = document.querySelector('#edit-modal .modal-card');
+function acctSpecialFormInner() {
   const f = state.specialForm;
-  if (!f) { card.innerHTML = ''; return; }
-  card.innerHTML = `
-    <div class="modal-header">
-      <div class="modal-title">${f.id ? '编辑款项' : '添加特殊款项'}</div>
-      <button class="icon-btn" data-act="close-acct-modal" title="关闭">×</button>
-    </div>
-    <div class="modal-body">
-      <div>
-        <div class="modal-field-label">名称</div>
-        <input type="text" class="modal-input" id="sp-name" value="${utils.esc(f.name)}" placeholder="如：招商银行 / 房贷" autocapitalize="off" autocorrect="off" spellcheck="false">
-      </div>
-      <div>
-        <div class="modal-field-label">金额</div>
-        <div class="exp-amount-wrap">
-          <span class="exp-amount-sym">${currencySym()}</span>
-          <input type="number" inputmode="decimal" step="0.01" class="exp-amount-input" id="sp-amount" value="${f.amount}" placeholder="0.00" autocomplete="off">
-        </div>
-      </div>
-      <div>
-        <div class="modal-field-label">类型</div>
-        <div class="type-toggle" style="display:inline-flex">
-          <button class="${f.kind==='asset'?'active':''}" data-act="sp-set-kind" data-kind="asset">💰 资产（计入余额 +）</button>
-          <button class="${f.kind==='debt'?'active':''}" data-act="sp-set-kind" data-kind="debt">💳 负债（计入余额 −）</button>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      ${f.id ? `<button class="danger-btn" data-act="sp-delete">删除</button>` : ''}
-      <div style="flex:1"></div>
-      <button class="glass-btn" data-act="close-acct-modal">取消</button>
-      <button class="glass-btn primary" data-act="sp-save">保存</button>
-    </div>
-  `;
-  setTimeout(() => document.getElementById('sp-name')?.focus(), 50);
+  if (!f) return '';
+  return `
+    <div class="acct-inline-form">
+      <div class="acct-inline-head"><span>${f.id ? '编辑款项' : '添加特殊款项'}</span>
+        <button class="acct-inline-x" data-act="close-acct-special" title="取消" aria-label="取消">×</button></div>
+      <div class="acct-inline-field"><div class="modal-field-label">名称</div>
+        <input type="text" class="modal-input" id="sp-name" value="${utils.esc(f.name)}" placeholder="如：招商银行 / 房贷" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      <div class="acct-inline-field"><div class="modal-field-label">金额</div>
+        <div class="exp-amount-wrap"><span class="exp-amount-sym">${currencySym()}</span>
+          <input type="number" inputmode="decimal" step="0.01" class="exp-amount-input" id="sp-amount" value="${f.amount}" placeholder="0.00" autocomplete="off"></div></div>
+      <div class="acct-inline-field"><div class="modal-field-label">类型</div>
+        <div class="entry-type-toggle">
+          <button class="${f.kind==='asset'?'active':''}" data-act="sp-set-kind" data-kind="asset">资产 +</button>
+          <button class="${f.kind==='debt'?'active':''}" data-act="sp-set-kind" data-kind="debt">负债 −</button></div></div>
+      <div class="acct-inline-actions">
+        ${f.id ? `<button class="danger-btn" data-act="sp-delete">删除</button>` : ''}
+        <div style="flex:1"></div>
+        <button class="glass-btn" data-act="close-acct-special">取消</button>
+        <button class="glass-btn primary" data-act="sp-save">保存</button></div>
+    </div>`;
+}
+
+function renderAcctSpecial() {
+  const host = document.getElementById('acct-special-host');
+  if (host) host.innerHTML = acctSpecialFormInner();
+  if (state.specialForm) setTimeout(() => document.getElementById('sp-name')?.focus(), 0);
 }
 
 async function saveSpecial() {
@@ -4422,7 +4419,6 @@ async function saveSpecial() {
   if (f.id) await api.put(`/special-items/${f.id}`, payload);
   else await api.post('/special-items', { ...payload, checked: true });
   state.specialForm = null;
-  document.getElementById('edit-modal').classList.add('hidden');
   await refreshAccounting();
   render();
 }
@@ -4433,10 +4429,11 @@ async function deleteSpecial() {
   if (!confirm('确定删除这个款项？')) return;
   await api.del(`/special-items/${f.id}`);
   state.specialForm = null;
-  document.getElementById('edit-modal').classList.add('hidden');
   await refreshAccounting();
   render();
 }
+
+function cancelAcctSpecial() { state.specialForm = null; render(); }
 
 // Click handler for the edit modal (delegated). Handles both the legacy
 // `state.editing` modal AND the new calendar popup, which reuses the
@@ -4447,11 +4444,7 @@ document.getElementById('edit-modal').addEventListener('click', async (e) => {
   const act = el.dataset.act;
   switch (act) {
     case 'close-modal':
-      if (state.entryForm || state.specialForm) {
-        state.entryForm = null;
-        state.specialForm = null;
-        document.getElementById('edit-modal').classList.add('hidden');
-      } else if (state.inlineEdit && state.inlineEdit.mode === 'popup') {
+      if (state.inlineEdit && state.inlineEdit.mode === 'popup') {
         await saveInlineEdit();   // overlay click → auto-save & close
       } else {
         closeEditModal();
@@ -4489,42 +4482,7 @@ document.getElementById('edit-modal').addEventListener('click', async (e) => {
         });
       }
       break;
-    // ── Accounting entry modal actions ──
-    case 'close-acct-modal':
-      state.entryForm = null;
-      state.specialForm = null;
-      document.getElementById('edit-modal').classList.add('hidden');
-      break;
-    case 'entry-set-type':
-      syncEntryInputs();
-      state.entryForm.type = el.dataset.type;
-      renderEntryModal();
-      break;
-    case 'inc-set-cat':
-      syncEntryInputs();
-      state.entryForm.category = el.dataset.c;
-      renderEntryModal();
-      break;
-    case 'exp-set-cat1':
-      syncEntryInputs();
-      state.entryForm.cat1 = el.dataset.c;
-      state.entryForm.cat2 = '';   // reset secondary when primary changes
-      renderEntryModal();
-      break;
-    case 'exp-set-cat2':
-      syncEntryInputs();
-      state.entryForm.cat2 = (state.entryForm.cat2 === el.dataset.c) ? '' : el.dataset.c;
-      renderEntryModal();
-      break;
-    case 'exp-save':   await saveEntry(); break;
-    case 'exp-delete': await deleteEntry(); break;
-    case 'sp-set-kind':
-      syncSpecialInputs();
-      state.specialForm.kind = el.dataset.kind;
-      renderSpecialModal();
-      break;
-    case 'sp-save':   await saveSpecial(); break;
-    case 'sp-delete': await deleteSpecial(); break;
+    // (Accounting entry/special are inline now — handled in the card-wrapper handler)
   }
 });
 
