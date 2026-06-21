@@ -860,10 +860,17 @@ function renderAccountingMain() {
   const items = state.accounting.specialItems;
   const monthNet = (Number(sm.month_income) || 0) - (Number(sm.month_expense) || 0);
 
+  // Period change over the chart window (last − first)
+  const ser = sm.series || [];
+  const change = ser.length >= 2 ? (ser[ser.length - 1].amount - ser[0].amount) : 0;
+  const changeBadge = ser.length >= 2
+    ? `<span class="acct-change ${change > 0 ? 'up' : change < 0 ? 'down' : 'flat'}">近${ser.length}天 ${change > 0 ? '↑' : change < 0 ? '↓' : '·'} ${fmtMoney(Math.abs(change))}</span>`
+    : '';
+
   const overview = `
     <div class="acct-overview">
       <div class="acct-balance-main">
-        <div class="acct-balance-label">当前余额</div>
+        <div class="acct-balance-label">当前余额 ${changeBadge}</div>
         <div class="acct-balance-value ${sm.current_balance < 0 ? 'neg' : ''}">${fmtMoney(sm.current_balance)}</div>
         <div class="acct-balance-stats">
           <span>本月支出 <b class="exp">-${fmtMoney(sm.month_expense)}</b></span>
@@ -893,12 +900,25 @@ function renderAccountingMain() {
       </div>
     </div>`;
 
+  // Asset / debt subtotals from the items that count toward the balance (checked)
+  const checked = items.filter(it => it.checked);
+  const assetSum = checked.filter(it => it.kind !== 'debt').reduce((s, it) => s + (Number(it.amount) || 0), 0);
+  const debtSum = checked.filter(it => it.kind === 'debt').reduce((s, it) => s + (Number(it.amount) || 0), 0);
+  const netSum = assetSum - debtSum;
+  const specialSummary = items.length ? `
+    <div class="acct-special-summary">
+      <span>资产 <b class="asset">${fmtMoney(assetSum)}</b></span>
+      <span>负债 <b class="debt">${fmtMoney(debtSum)}</b></span>
+      <span>净 <b class="${netSum < 0 ? 'debt' : 'asset'}">${fmtSigned(netSum)}</b></span>
+    </div>` : '';
+
   const specialCol = `
     <div class="acct-col acct-col-special">
       <div class="acct-col-head">
         <span class="panel-head-title">特殊款项</span>
         <button class="panel-add-btn ${sf && !sf.id ? 'active' : ''}" data-act="acct-add-special" title="添加款项" aria-label="添加款项">${ICONS.plus}</button>
       </div>
+      ${specialSummary}
       <div class="acct-col-scroll">
         <div id="acct-special-host">${sf ? acctSpecialFormInner() : ''}</div>
         ${sitems.length ? sitems.map(renderSpecialRow).join('')
@@ -1018,39 +1038,61 @@ function renderLedgerRow(r) {
     </div>`;
 }
 
-/* Full-width SVG line chart. preserveAspectRatio="none" lets it stretch to
-   any width; non-scaling-stroke keeps the line crisp when stretched. */
+/* Full-width SVG balance chart. Adds context: a dashed zero baseline (when
+   0 is in range), a faint red band over the below-zero region, an endpoint
+   dot, and red/green line by current-balance sign. preserveAspectRatio="none"
+   stretches to any width; non-scaling-stroke keeps strokes crisp. */
 function renderBalanceChart(series) {
   if (!series || series.length < 2) {
     return `<div class="acct-chart-empty">余额趋势 · 记录后显示</div>`;
   }
   const W = 600, H = 88, padX = 4, padY = 12;
   const vals = series.map(p => p.amount);
-  let min = Math.min(...vals), max = Math.max(...vals);
-  if (min === max) { min -= 1; max += 1; }
-  const range = max - min;
+  const dmin = Math.min(...vals), dmax = Math.max(...vals);
+  let lo = dmin, hi = dmax;
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.15;
+  lo -= pad; hi += pad;
+  const range = hi - lo;
   const n = series.length;
   const x = i => padX + (i / (n - 1)) * (W - padX * 2);
-  const y = v => padY + (1 - (v - min) / range) * (H - padY * 2);
+  const y = v => padY + (1 - (v - lo) / range) * (H - padY * 2);
 
   const pts = series.map((p, i) => [x(i), y(p.amount)]);
   const linePath = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
   const areaPath = `${linePath} L${pts[n-1][0].toFixed(1)},${H-padY} L${pts[0][0].toFixed(1)},${H-padY} Z`;
 
+  // Zero reference + below-zero (debt) band
+  const zeroIn = (0 >= lo && 0 <= hi);
+  const zeroY = zeroIn ? y(0) : (0 > hi ? padY : H - padY);
+  const bandTop = Math.max(padY, Math.min(zeroY, H - padY));
+  const bandH = (H - padY) - bandTop;
+
+  const last = series[n - 1].amount;
+  const neg = last < 0;
+  const color = neg ? 'var(--danger, #e5484d)' : '#30a46c';
+  const lastXpct = (pts[n-1][0] / W * 100).toFixed(2);
+  const lastYpct = (pts[n-1][1] / H * 100).toFixed(2);
+
   return `
     <div class="acct-chart">
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="acct-chart-svg">
-        <defs>
-          <linearGradient id="acct-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28"/>
-            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
-          </linearGradient>
-        </defs>
-        <path d="${areaPath}" fill="url(#acct-grad)"/>
-        <path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="2"
-              vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
-      </svg>
-      <div class="acct-chart-caption">近 ${n} 天 · 高 ${fmtMoney(max)} / 低 ${fmtMoney(min)}</div>
+      <div class="acct-chart-plot">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="acct-chart-svg">
+          <defs>
+            <linearGradient id="acct-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${color}" stop-opacity="0.22"/>
+              <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          ${bandH > 1 ? `<rect x="0" y="${bandTop.toFixed(1)}" width="${W}" height="${bandH.toFixed(1)}" fill="var(--danger, #e5484d)" opacity="0.06"/>` : ''}
+          <path d="${areaPath}" fill="url(#acct-grad)"/>
+          ${zeroIn ? `<line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="var(--text-tertiary)" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke" opacity="0.55"/>` : ''}
+          <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2"
+                vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+        <div class="acct-chart-dot" style="left:${lastXpct}%;top:${lastYpct}%;background:${color}"></div>
+      </div>
+      <div class="acct-chart-caption">${zeroIn ? '0 基准线 · ' : ''}高 ${fmtMoney(dmax)} / 低 ${fmtMoney(dmin)}</div>
     </div>`;
 }
 

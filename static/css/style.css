@@ -2887,6 +2887,16 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
   color: var(--text-primary); font-variant-numeric: tabular-nums;
 }
 .acct-balance-value.neg { color: var(--danger, #e5484d); }
+/* Period-change badge next to 当前余额 */
+.acct-balance-label { display: flex; align-items: center; gap: 8px; }
+.acct-change {
+  font-size: 0.66rem; font-weight: 600; letter-spacing: 0;
+  text-transform: none; padding: 1px 6px; border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.acct-change.up   { color: #30a46c; background: rgba(48,164,108,0.12); }
+.acct-change.down { color: var(--danger, #e5484d); background: rgba(229,72,77,0.10); }
+.acct-change.flat { color: var(--text-tertiary); background: var(--item-glass); }
 .acct-balance-stats {
   display: flex; flex-direction: column; gap: 1px;
   margin-top: 7px; font-size: 0.72rem; color: var(--text-tertiary);
@@ -2898,7 +2908,13 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .acct-balance-stats .neg { color: var(--danger, #e5484d); }
 .acct-chart-wrap { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; }
 .acct-chart { width: 100%; }
+.acct-chart-plot { position: relative; width: 100%; height: 84px; }
 .acct-chart-svg { width: 100%; height: 84px; display: block; }
+.acct-chart-dot {
+  position: absolute; width: 7px; height: 7px; border-radius: 50%;
+  transform: translate(-50%, -50%); pointer-events: none;
+  box-shadow: 0 0 0 2px var(--card-bg, rgba(255,255,255,0.6));
+}
 .acct-chart-caption {
   font-size: 0.64rem; color: var(--text-tertiary);
   text-align: right; margin-top: 1px; font-variant-numeric: tabular-nums;
@@ -2929,6 +2945,18 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
   flex-shrink: 0; padding: 10px 2px 6px;
 }
 .acct-col-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; }
+/* 特殊款项 asset/debt/net subtotals */
+.acct-special-summary {
+  flex-shrink: 0;
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  padding: 6px 8px 8px; margin-bottom: 2px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 0.72rem; color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.acct-special-summary b { font-weight: 600; }
+.acct-special-summary .asset { color: var(--text-primary); }
+.acct-special-summary .debt { color: var(--danger, #e5484d); }
 
 /* ── Special item row (vertical) ── */
 .special-row {
