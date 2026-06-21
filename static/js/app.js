@@ -73,6 +73,7 @@ const DEFAULT_SETTINGS = {
   emoji_thought: '🧠',
   emoji_feeling: '👀',
   emoji_daynote: '🪶',
+  emoji_note: '✏️',
   emoji_todo_4: '🌕',
   emoji_todo_3: '🌖',
   emoji_todo_2: '🌗',
@@ -270,6 +271,7 @@ const utils = {
     if (item.type === 'thought')  return state.settings.emoji_thought || '🧠';
     if (item.type === 'feeling')  return state.settings.emoji_feeling || '👀';
     if (item.type === 'daynote')  return state.settings.emoji_daynote || '🪶';
+    if (item.type === 'note')     return state.settings.emoji_note || '✏️';
     if (item.priority !== undefined) return state.settings[`emoji_todo_${item.priority}`] || CFG.PRIO_DEFAULT_EMOJI[item.priority];
     return '•';
   },
@@ -621,9 +623,9 @@ function renderMainView() {
     <div class="main-desktop">
       <div class="thoughts-panel">
         ${renderPanelHead('thought', '想法 & 感受')}
-        <div class="panel-scroll">
+        <div class="panel-scroll ${state.addingThought ? 'adding-thought' : ''}">
           ${state.addingThought ? renderThoughtEditor(true) : ''}
-          ${renderThoughtsList(state.thoughts)}
+          <div class="panel-list-wrap">${renderThoughtsList(state.thoughts)}</div>
         </div>
       </div>
       <div class="panel-splitter" data-orient="v" data-skey="card_split" title="拖动调整分区比例"></div>
@@ -646,9 +648,9 @@ function renderMainView() {
       <div class="panel-splitter" data-orient="h" data-skey="card_split_mobile" title="拖动调整分区比例"></div>
       <div class="mobile-thoughts-section">
         ${renderPanelHead('thought', '想法 & 感受')}
-        <div class="panel-scroll">
+        <div class="panel-scroll ${state.addingThought ? 'adding-thought' : ''}">
           ${state.addingThought ? renderThoughtEditor(true) : ''}
-          ${renderThoughtsList(state.thoughts)}
+          <div class="panel-list-wrap">${renderThoughtsList(state.thoughts)}</div>
         </div>
       </div>
     </div>
@@ -721,6 +723,7 @@ function renderThoughtInlineEditor(data) {
           <button class="${data.type==='thought'?'active':''}" data-act="inline-type" data-type="thought">${utils.esc(s.emoji_thought)} 想法</button>
           <button class="${data.type==='feeling'?'active':''}" data-act="inline-type" data-type="feeling">${utils.esc(s.emoji_feeling)} 感受</button>
           <button class="${data.type==='daynote'?'active':''}" data-act="inline-type" data-type="daynote">${utils.esc(s.emoji_daynote)} 日迹</button>
+          <button class="${data.type==='note'?'active':''}" data-act="inline-type" data-type="note">${utils.esc(s.emoji_note)} 笔记</button>
         </div>
         <div class="inline-edit-actions">
           <button class="danger-btn" data-act="inline-delete">删除</button>
@@ -1235,6 +1238,7 @@ function renderThoughtEditor(showImmersive = true) {
           <button class="${state.addType==='thought'?'active':''}" data-act="set-type" data-type="thought">${utils.esc(state.settings.emoji_thought)} 想法</button>
           <button class="${state.addType==='feeling'?'active':''}" data-act="set-type" data-type="feeling">${utils.esc(state.settings.emoji_feeling)} 感受</button>
           <button class="${state.addType==='daynote'?'active':''}" data-act="set-type" data-type="daynote">${utils.esc(state.settings.emoji_daynote)} 日迹</button>
+          <button class="${state.addType==='note'?'active':''}" data-act="set-type" data-type="note">${utils.esc(state.settings.emoji_note)} 笔记</button>
         </div>
         <div style="flex:1"></div>
         ${showImmersive ? `<button class="immersive-btn ${state.immersive?'on':''}" data-act="toggle-immersive" title="${immersiveTitle}" aria-label="${immersiveTitle}">${immersiveIcon}</button>` : ''}
@@ -1598,6 +1602,7 @@ function renderTabInterface() {
     { key: 'emoji_thought', label: '想法' },
     { key: 'emoji_feeling', label: '感受' },
     { key: 'emoji_daynote', label: '日迹' },
+    { key: 'emoji_note', label: '笔记' },
     { key: 'emoji_todo_4',  label: '紧急' },
     { key: 'emoji_todo_3',  label: '重要' },
     { key: 'emoji_todo_2',  label: '一般' },
@@ -2290,7 +2295,7 @@ async function resetSection(section) {
     interface:  ['show_date','show_time','show_weekday','show_seconds','show_lunar','hour_format',
                  'show_datetime','show_thought_time','show_thought_content','show_priority_emoji',
                  'hide_todo_emoji','dim_past_thoughts','cal_days_per_page','cal_item_click_mode',
-                 'emoji_thought','emoji_feeling','emoji_daynote','emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1'],
+                 'emoji_thought','emoji_feeling','emoji_daynote','emoji_note','emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1'],
   };
   const keys = sectionKeys[section];
   if (!keys) return;
@@ -2312,7 +2317,7 @@ async function restoreAllStyle() {
   if (!confirm('确定要还原所有外观样式吗？数据不会丢失。')) return;
   const updates = {};
   ['theme','font_size','font_weight','font_family','card_size','card_opacity','card_radius','card_aspect','card_aspect_mobile','card_split','card_split_mobile',
-   'ui_style','color_scheme','emoji_thought','emoji_feeling','emoji_daynote',
+   'ui_style','color_scheme','emoji_thought','emoji_feeling','emoji_daynote','emoji_note',
    'emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1',
    'active_wp_desktop_light','active_wp_desktop_dark',
    'active_wp_mobile_light','active_wp_mobile_dark'].forEach(k => {
@@ -4213,7 +4218,7 @@ function renderEditModal() {
     const fullText = data.title ? (data.title + '\n' + (data.content || '')) : (data.content || '');
     card.innerHTML = `
       <div class="modal-header">
-        <div class="modal-title">编辑${data.type==='daynote'?'日迹':data.type==='feeling'?'感受':'想法'}</div>
+        <div class="modal-title">编辑${data.type==='note'?'笔记':data.type==='daynote'?'日迹':data.type==='feeling'?'感受':'想法'}</div>
         <button class="icon-btn" data-act="close-modal" title="关闭">×</button>
       </div>
       <div class="modal-body">
@@ -4223,6 +4228,7 @@ function renderEditModal() {
             <button class="${data.type==='thought'?'active':''}" data-act="edit-type" data-type="thought">${utils.esc(state.settings.emoji_thought)} 想法</button>
             <button class="${data.type==='feeling'?'active':''}" data-act="edit-type" data-type="feeling">${utils.esc(state.settings.emoji_feeling)} 感受</button>
             <button class="${data.type==='daynote'?'active':''}" data-act="edit-type" data-type="daynote">${utils.esc(state.settings.emoji_daynote)} 日迹</button>
+            <button class="${data.type==='note'?'active':''}" data-act="edit-type" data-type="note">${utils.esc(state.settings.emoji_note)} 笔记</button>
           </div>
         </div>
         <div style="flex:1;min-height:240px;display:flex;flex-direction:column">

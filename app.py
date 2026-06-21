@@ -151,6 +151,7 @@ def init_db():
         'emoji_thought': '🧠',
         'emoji_feeling': '👀',
         'emoji_daynote': '🪶',
+        'emoji_note': '✏️',
         'emoji_todo_4': '🌕',
         'emoji_todo_3': '🌖',
         'emoji_todo_2': '🌗',

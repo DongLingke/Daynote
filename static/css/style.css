@@ -1008,6 +1008,30 @@ body.dtpos-center .header-title { visibility: hidden; }
 }
 .panel-scroll .todo-add-row { margin-bottom: 10px; }
 
+/* When the inline add editor is open, give it ~2/3 of the column and let the
+   thought list take the remaining 1/3 (scrolls on its own). */
+.panel-scroll.adding-thought {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel-scroll.adding-thought .thought-editor {
+  flex: 2 1 0;
+  min-height: 0;
+  margin-bottom: 10px;
+}
+.panel-scroll.adding-thought .thought-editor .wysi-editor {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+}
+.panel-scroll.adding-thought .panel-list-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 /* Mobile: stacked vertical layout — todos on top, thoughts/feelings below */
 .main-mobile { display: none; }
 
