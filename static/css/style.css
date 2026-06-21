@@ -1032,6 +1032,14 @@ body.dtpos-center .header-title { visibility: hidden; }
   overflow-y: auto;
 }
 
+/* Editing an existing note in place: give the editor the same generous
+   writing room as the add editor (~2/3 of the column). */
+.panel-scroll .inline-edit-thought .wysi-editor {
+  min-height: 36vh;
+  max-height: 58vh;
+  overflow-y: auto;
+}
+
 /* Mobile: stacked vertical layout — todos on top, thoughts/feelings below */
 .main-mobile { display: none; }
 
