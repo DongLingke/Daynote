@@ -692,12 +692,11 @@ function renderPanelHead(kind, title) {
       { v: 'note',    label: '笔记', emo: s.emoji_note || '🪶' },
       { v: 'excerpt', label: '摘录', emo: s.emoji_excerpt || '✂️' },
     ];
-    const cur = opts.find(o => o.v === state.thoughtFilter) || opts[0];
     return `
       <div class="panel-head">
-        <select class="panel-filter" data-act="set-thought-filter">
-          ${opts.map(o => `<option value="${o.v}" ${state.thoughtFilter===o.v?'selected':''}>${o.emo} ${o.label}</option>`).join('')}
-        </select>
+        <div class="panel-filter-tabs">
+          ${opts.map(o => `<button class="panel-filter-tab ${state.thoughtFilter===o.v?'active':''}" data-act="set-thought-filter" data-v="${o.v}" title="${o.label}">${o.emo}</button>`).join('')}
+        </div>
         <button class="panel-add-btn ${adding ? 'active' : ''}" data-act="${act}"
                 title="${adding ? '收起' : '添加'}" aria-label="${adding ? '收起' : '添加'}">
           ${adding ? ICONS.close : ICONS.plus}
@@ -981,13 +980,13 @@ function renderAccountingMain() {
   const feedCol = `
     <div class="acct-col acct-col-feed">
       <div class="acct-col-head">
-        <select class="panel-filter" data-act="set-acct-filter">
-          <option value="all" ${state.acctFilter==='all'?'selected':''}>⚪ 全部</option>
+        <div class="panel-filter-tabs">
+          <button class="panel-filter-tab ${state.acctFilter==='all'?'active':''}" data-act="set-acct-filter" data-v="all" title="全部">⚪</button>
           ${Object.keys(expenseCats()).map(c1 => {
             const ic = (expenseCats()[c1] || {}).icon || '🏷';
-            return `<option value="${utils.esc(c1)}" ${state.acctFilter===c1?'selected':''}>${utils.esc(ic)} ${utils.esc(c1)}</option>`;
+            return `<button class="panel-filter-tab ${state.acctFilter===c1?'active':''}" data-act="set-acct-filter" data-v="${utils.esc(c1)}" title="${utils.esc(c1)}">${utils.esc(ic)}</button>`;
           }).join('')}
-        </select>
+        </div>
         <button class="panel-add-btn ${ef && !ef.id ? 'active' : ''}" data-act="acct-add-expense" title="记一笔" aria-label="记一笔">${ICONS.plus}</button>
       </div>
       <div class="acct-col-scroll">
@@ -1370,7 +1369,7 @@ function renderThoughtEditor(showImmersive = true) {
         </div>
         <div style="flex:1"></div>
         ${showImmersive ? `<button class="immersive-btn ${state.immersive?'on':''}" data-act="toggle-immersive" title="${immersiveTitle}" aria-label="${immersiveTitle}">${immersiveIcon}</button>` : ''}
-        <button class="glass-btn primary" data-act="save-thought">添加</button>
+        <button class="glass-btn primary" data-act="save-thought">${state.editingThoughtId ? '保存' : '添加'}</button>
       </div>
     </div>
   `;
@@ -2001,17 +2000,19 @@ async function saveThought() {
   const body = activeWysiEditor.getBody().trim();
   if (title.length > 120) title = title.slice(0, 120);
   if (!title && !body) return;
-  await api.post('/thoughts', {
-    title,
-    content: body || title,
-    type: state.addType,
-    emoji: '',
-  });
+  const payload = { title, content: body || title, type: state.addType };
+  // If this session was opened via inline-fullscreen on an existing
+  // thought, save back to it instead of creating a new one.
+  if (state.editingThoughtId) {
+    await api.put(`/thoughts/${state.editingThoughtId}`, payload);
+    state.editingThoughtId = null;
+  } else {
+    await api.post('/thoughts', { ...payload, emoji: '' });
+  }
   activeWysiEditor.setValue('');
   state.thoughts = await api.get('/thoughts');
-  // Adding a thought / feeling collapses the inline editor back to the list
-  // (todos, by contrast, keep their add row open so you can add several).
   state.addingThought = false;
+  state.immersive = false;
   render();
 }
 
@@ -2602,8 +2603,19 @@ function bindGlobalEvents() {
         }
         break;
       // category editor (ce-*) handled by its own delegated handler (bindCatEditor)
+      case 'set-thought-filter':
+        state.thoughtFilter = el.dataset.v;
+        render(); break;
+      case 'set-acct-filter':
+        state.acctFilter = el.dataset.v;
+        render(); break;
       case 'toggle-add-thought':
         state.addingThought = !state.addingThought;
+        if (!state.addingThought) {
+          state.editingThoughtId = null;
+          state.editingThoughtSeed = null;
+          state.immersive = false;
+        }
         render();
         break;
       case 'toggle-add-todo':
@@ -2734,11 +2746,21 @@ function bindGlobalEvents() {
       case 'inline-complete':   await toggleCompleteInline(true);  break;
       case 'inline-uncomplete': await toggleCompleteInline(false); break;
       case 'inline-fullscreen': {
-        // Save current inline edits to state.thoughts (server) then open modal
+        // Take the current inline edit content and enter the SAME immersive
+        // (add-style) fullscreen editor — but keep the existing thought's id
+        // so "添加" saves back to it. Snapshot current editor value first.
         const ie = state.inlineEdit;
         if (ie && ie.kind === 'thought') {
-          await saveInlineEdit();
-          openEditModal('thought', ie.id);
+          const text = state.inlineEditor ? state.inlineEditor.getValue()
+            : ((ie.data.title ? ie.data.title + '\n' : '') + (ie.data.content || ''));
+          state.editingThoughtId = ie.id;
+          state.editingThoughtSeed = text;
+          state.addType = ie.data.type || 'daynote';
+          state.inlineEdit = null;
+          state.inlineEditor = null;
+          state.addingThought = true;
+          state.immersive = true;
+          render();
         }
         break;
       }
@@ -2815,13 +2837,8 @@ function bindGlobalEvents() {
 }
 
 function bindViewEvents() {
-  // Type-filter dropdown for the thoughts panel
-  document.querySelectorAll('[data-act="set-thought-filter"]').forEach(sel => {
-    sel.onchange = () => { state.thoughtFilter = sel.value; render(); };
-  });
-  document.querySelectorAll('[data-act="set-acct-filter"]').forEach(sel => {
-    sel.onchange = () => { state.acctFilter = sel.value; render(); };
-  });
+  // (Type-filter tabs are handled by the global click handler via data-act
+  // = set-thought-filter / set-acct-filter — no per-element binding needed.)
   // Keyboard shortcuts in add view
   const ti = document.getElementById('todo-add-input');
   if (ti) {
@@ -2830,7 +2847,9 @@ function bindViewEvents() {
   // Initialize WYSIWYG editor if present
   const wysiEl = document.getElementById('thought-wysi');
   if (wysiEl) {
-    activeWysiEditor = setupWysiEditor(wysiEl, '');
+    const seed = state.editingThoughtSeed || '';
+    activeWysiEditor = setupWysiEditor(wysiEl, seed);
+    state.editingThoughtSeed = null;   // consume after mount
     wysiEl.addEventListener('keydown', e => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
@@ -4653,13 +4672,6 @@ function acctEntryFormInner() {
             : `<button class="acct-entry-addbtn" data-act="entry-addcat" data-scope="c2" data-c1="${utils.esc(c1)}" title="添加二级">+</button>`}
         </div>`;
       }).join('') || '<div class="acct-entry-empty">在设置里添加分类</div>'}
-      <div class="acct-entry-catrow acct-entry-catrow-add">
-        ${addingC1
-          ? `<span class="acct-entry-addchip wide"><input id="entry-newcat" class="acct-entry-newcat" placeholder="一级分类名" autocomplete="off">
-              <button class="acct-entry-mini ok" data-act="entry-addcat-ok">添加</button>
-              <button class="acct-entry-mini" data-act="entry-addcat-cancel">取消</button></span>`
-          : `<button class="acct-entry-addbtn wide" data-act="entry-addcat" data-scope="c1">+ 一级分类</button>`}
-      </div>
     </div>`;
   }
 

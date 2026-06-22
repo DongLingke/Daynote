@@ -385,6 +385,10 @@ body.fullscreen-card #card-wrapper .glass-layer {
   padding: 6px 8px;
   border-radius: var(--radius-item);
 }
+.style-flat .thought-item {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+}
 .style-flat .todo-item:hover,
 .style-flat .thought-item:hover,
 .style-flat .cal-item:hover {
@@ -558,6 +562,10 @@ body.fullscreen-card #card-wrapper .glass-layer {
   margin-bottom: 2px;
   padding: 7px 9px;
 }
+.style-paper .thought-item {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+}
 .style-paper .todo-item:hover,
 .style-paper .thought-item:hover,
 .style-paper .cal-item:hover {
@@ -694,6 +702,10 @@ body.fullscreen-card #card-wrapper .glass-layer {
   border-radius: 2px;
   margin-bottom: 2px;
   padding: 5px 8px;
+}
+.style-terminal .thought-item {
+  margin-bottom: 10px;
+  padding: 10px 12px;
 }
 .style-terminal .todo-item:hover,
 .style-terminal .thought-item:hover,
@@ -1204,10 +1216,10 @@ body.dim-past .add-thoughts-panel .date-group.is-past:hover {
    ═══════════════════════════════════════════════════════════════════ */
 .thought-item {
   display: flex;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 10px 12px;
   border-radius: var(--radius-item);
-  margin-bottom: 6px;
+  margin-bottom: 10px;
   background: var(--item-glass);
   border: 1px solid transparent;
   transition: background 0.18s, border-color 0.18s;
@@ -1220,19 +1232,20 @@ body.dim-past .add-thoughts-panel .date-group.is-past:hover {
 }
 
 .item-emoji {
-  font-size: 1.14rem;
+  font-size: 1.22rem;
   line-height: 1;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .thought-body { flex: 1; min-width: 0; }
 
 .thought-title {
-  font-size: 0.93rem;
+  font-size: 1.08rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3051,10 +3064,20 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 /* ── Redesigned 记一笔 entry form ── */
 .acct-entry-form {
   border: 1px solid var(--item-border);
-  background: transparent;
+  background: var(--item-glass);
   padding: 0;
   gap: 0;
   overflow: hidden;
+  border-radius: var(--radius-item, 12px);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.04),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  margin-bottom: 14px;
+}
+.theme-dark .acct-entry-form {
+  box-shadow:
+    0 3px 10px rgba(0,0,0,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
 .acct-entry-topbar {
   display: flex; align-items: center; gap: 10px;
@@ -3359,23 +3382,34 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .ce-c1[draggable], .ce-c2[draggable] { cursor: move; }
 .ce-dragging { opacity: 0.45; }
 
-/* ── Panel head: type-filter dropdown ── */
-.panel-filter {
-  appearance: none; -webkit-appearance: none;
+/* ── Panel head: horizontal filter tabs (icon-only, all visible) ── */
+.panel-filter-tabs {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px;
   border: 1px solid var(--item-border);
   background: var(--item-glass);
-  color: var(--text-primary);
-  font-family: var(--font-family); font-size: 0.78rem;
-  padding: 4px 22px 4px 10px; border-radius: 999px;
-  cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, var(--text-tertiary) 50%),
-                    linear-gradient(135deg, var(--text-tertiary) 50%, transparent 50%);
-  background-position: calc(100% - 12px) 50%, calc(100% - 8px) 50%;
-  background-size: 4px 4px, 4px 4px;
-  background-repeat: no-repeat;
+  border-radius: 999px;
+  overflow-x: auto;
+  max-width: 100%;
+  scrollbar-width: none;
 }
-.panel-filter:focus { outline: none; border-color: var(--accent); }
-.panel-filter:hover { background-color: var(--item-glass-hover); }
+.panel-filter-tabs::-webkit-scrollbar { display: none; }
+.panel-filter-tab {
+  flex-shrink: 0;
+  border: none; background: transparent; cursor: pointer;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  font-size: 0.9rem; line-height: 1;
+  color: var(--text-secondary);
+  transition: background 0.15s, transform 0.1s;
+}
+.panel-filter-tab:hover { background: var(--item-glass-hover); }
+.panel-filter-tab:active { transform: scale(0.92); }
+.panel-filter-tab.active {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+}
 
 /* ── Priority label row (now hosts the add button) ── */
 .priority-label-row {
