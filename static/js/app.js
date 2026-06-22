@@ -4073,7 +4073,7 @@ function initInlineEditDom() {
   } else {
     const wel = document.getElementById('inline-edit-wysi');
     if (!wel) return;
-    const fullText = data.title ? (data.title + '\n' + (data.content || '')) : (data.content || '');
+    const fullText = data.title ? (data.title + '\n\n' + (data.content || '')) : (data.content || '');
     state.inlineEditor = setupWysiEditor(wel, fullText);
     wel.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); saveInlineEdit(); }
@@ -4215,7 +4215,7 @@ function renderEditModal() {
     `;
   } else {
     // thought
-    const fullText = data.title ? (data.title + '\n' + (data.content || '')) : (data.content || '');
+    const fullText = data.title ? (data.title + '\n\n' + (data.content || '')) : (data.content || '');
     card.innerHTML = `
       <div class="modal-header">
         <div class="modal-title">编辑${data.type==='note'?'笔记':data.type==='daynote'?'日迹':data.type==='feeling'?'感受':'想法'}</div>
