@@ -70,10 +70,11 @@ const DEFAULT_SETTINGS = {
   active_wp_desktop_dark: '',
   active_wp_mobile_light: '',
   active_wp_mobile_dark: '',
-  emoji_thought: '🧠',
-  emoji_feeling: '👀',
-  emoji_daynote: '🪶',
-  emoji_note: '✏️',
+  emoji_thought: '🌱',
+  emoji_feeling: '🌊',
+  emoji_daynote: '☕',
+  emoji_note: '🪶',
+  emoji_excerpt: '✂️',
   emoji_todo_4: '🌕',
   emoji_todo_3: '🌖',
   emoji_todo_2: '🌗',
@@ -96,6 +97,8 @@ const DEFAULT_SETTINGS = {
   cal_item_click_mode: 'expand',
   card_item_tint: '5',
   dim_past_thoughts: 'true',
+  show_each_date: 'false',         // thoughts: show date on every row instead of date groups
+  collapse_same_date: 'true',      // when show_each_date is on, collapse consecutive same-date rows
   close_action: 'minimize',  // desktop app: 'minimize' or 'quit' on window close
   // ── Accounting mode ──
   app_mode: 'diary',         // 'diary' | 'accounting'
@@ -123,6 +126,9 @@ const state = {
   isMobile: window.matchMedia('(max-width: 768px)').matches,
   immersive: false, // immersive full-card editor in add view
   addingThought: false, // main view: thoughts panel is showing its inline add editor
+  thoughtFilter: 'all',  // all | thought | feeling | daynote | note | excerpt
+  todoFilter: 'all',     // all | <cat1 names from expense_categories? no — todo priorities 4/3/2/1>
+  acctFilter: 'all',     // all | <cat1 name> — for 最近消费
   addingTodo: false,    // main view: todos panel is showing its inline add row
   inlineEdit: null,   // { kind:'todo'|'thought', id, data:{...} } when a row is being edited in place
   inlineEditor: null, // WYSI editor instance for thought inline edits
@@ -272,8 +278,9 @@ const utils = {
     if (item.emoji) return item.emoji;
     if (item.type === 'thought')  return state.settings.emoji_thought || '🧠';
     if (item.type === 'feeling')  return state.settings.emoji_feeling || '👀';
-    if (item.type === 'daynote')  return state.settings.emoji_daynote || '🪶';
-    if (item.type === 'note')     return state.settings.emoji_note || '✏️';
+    if (item.type === 'daynote')  return state.settings.emoji_daynote || '☕';
+    if (item.type === 'note')     return state.settings.emoji_note || '🪶';
+    if (item.type === 'excerpt')  return state.settings.emoji_excerpt || '✂️';
     if (item.priority !== undefined) return state.settings[`emoji_todo_${item.priority}`] || CFG.PRIO_DEFAULT_EMOJI[item.priority];
     return '•';
   },
@@ -532,6 +539,17 @@ function currencySym() { return state.settings.currency_symbol || '¥'; }
 /* Look up a category's emoji for display (empty string if none). */
 function cat1Icon(name) { return (expenseCats()[name] || {}).icon || ''; }
 
+/* Resolve the best icon to show in the ledger badge: prefer 二级's icon
+   (more specific), fall back to 一级's, then empty. */
+function expenseIcon(cat1, cat2) {
+  const c = (expenseCats()[cat1] || {});
+  if (cat2) {
+    const s = (c.subs || []).find(x => x.name === cat2);
+    if (s && s.icon) return s.icon;
+  }
+  return c.icon || '';
+}
+
 /* Today as zero-padded ISO 'YYYY-MM-DD' (matches the backend's date format;
    utils.dateKey is NOT padded so it can't be used for date inputs / the API). */
 function isoToday() {
@@ -632,8 +650,7 @@ function renderMainView() {
         </div>
       </div>
       <div class="panel-splitter" data-orient="v" data-skey="card_split" title="拖动调整分区比例"></div>
-      <div class="todos-panel">
-        ${renderPanelHead('todo', '待办')}
+      <div class="todos-panel todos-panel-noheader">
         <div class="panel-scroll">
           ${state.addingTodo ? renderTodoAddRow() : ''}
           ${renderTodosList(state.todos, true)}
@@ -641,8 +658,7 @@ function renderMainView() {
       </div>
     </div>
     <div class="main-mobile">
-      <div class="mobile-todos-section">
-        ${renderPanelHead('todo', '待办')}
+      <div class="mobile-todos-section todos-panel-noheader">
         <div class="panel-scroll">
           ${state.addingTodo ? renderTodoAddRow() : ''}
           ${renderTodosList(state.todos, false, true)}
@@ -665,6 +681,29 @@ function renderMainView() {
 function renderPanelHead(kind, title) {
   const adding = kind === 'thought' ? state.addingThought : state.addingTodo;
   const act = kind === 'thought' ? 'toggle-add-thought' : 'toggle-add-todo';
+  // For thoughts/feelings: replace the title with a type-filter dropdown.
+  if (kind === 'thought') {
+    const s = state.settings;
+    const opts = [
+      { v: 'all', label: '全部', emo: '⚪' },
+      { v: 'daynote', label: '日迹', emo: s.emoji_daynote || '☕' },
+      { v: 'thought', label: '想法', emo: s.emoji_thought || '🌱' },
+      { v: 'feeling', label: '感受', emo: s.emoji_feeling || '🌊' },
+      { v: 'note',    label: '笔记', emo: s.emoji_note || '🪶' },
+      { v: 'excerpt', label: '摘录', emo: s.emoji_excerpt || '✂️' },
+    ];
+    const cur = opts.find(o => o.v === state.thoughtFilter) || opts[0];
+    return `
+      <div class="panel-head">
+        <select class="panel-filter" data-act="set-thought-filter">
+          ${opts.map(o => `<option value="${o.v}" ${state.thoughtFilter===o.v?'selected':''}>${o.emo} ${o.label}</option>`).join('')}
+        </select>
+        <button class="panel-add-btn ${adding ? 'active' : ''}" data-act="${act}"
+                title="${adding ? '收起' : '添加'}" aria-label="${adding ? '收起' : '添加'}">
+          ${adding ? ICONS.close : ICONS.plus}
+        </button>
+      </div>`;
+  }
   return `
     <div class="panel-head">
       <span class="panel-head-title">${title}</span>
@@ -677,10 +716,20 @@ function renderPanelHead(kind, title) {
 }
 
 function renderThoughtsList(thoughts) {
-  if (!thoughts.length) {
-    return `<div class="empty-state"><div class="empty-icon">💭</div>还没有想法或感受<br>点右上角 + 来记录</div>`;
+  // Filter by type
+  const tf = state.thoughtFilter || 'all';
+  const filtered = tf === 'all' ? thoughts : thoughts.filter(t => (t.type || 'thought') === tf);
+  if (!filtered.length) {
+    return `<div class="empty-state"><div class="empty-icon">💭</div>${tf==='all' ? '还没有想法或感受' : '该类型还没有记录'}<br>点右上角 + 来记录</div>`;
   }
-  const groups = utils.groupByDate(thoughts);
+  // Per-row date mode (each row carries its own date in the leftmost column).
+  // When show_each_date is on, render a flat list; otherwise keep the existing
+  // date-group format. The collapse-same-date setting is handled inside the
+  // flat renderer.
+  if (state.settings.show_each_date === 'true') {
+    return renderThoughtsFlat(filtered);
+  }
+  const groups = utils.groupByDate(filtered);
   const todayKey = utils.dateKey(new Date());
   return groups.map(g => {
     const isToday = utils.dateKey(g.date) === todayKey;
@@ -690,6 +739,23 @@ function renderThoughtsList(thoughts) {
         ${g.items.map(t => renderThoughtItem(t)).join('')}
       </div>
     `;
+  }).join('');
+}
+
+/* Flat list with each row carrying its own date on the left. When
+   collapse_same_date is on, consecutive rows with the same date show only
+   the first row's date and a vertical bar for the rest. */
+function renderThoughtsFlat(thoughts) {
+  const collapse = state.settings.collapse_same_date === 'true';
+  let prevKey = null;
+  return thoughts.map(t => {
+    const key = utils.dateKey(t.created_at);
+    const showDate = !collapse || key !== prevKey;
+    const dateCell = showDate
+      ? `<div class="thought-date-col"><div class="thought-date-text">${utils.formatDateShort ? utils.formatDateShort(t.created_at) : utils.formatDate(t.created_at)}</div></div>`
+      : `<div class="thought-date-col"><div class="thought-date-bar"></div></div>`;
+    prevKey = key;
+    return `<div class="thought-flat-row">${dateCell}<div class="thought-flat-item">${renderThoughtItem(t)}</div></div>`;
   }).join('');
 }
 
@@ -723,13 +789,15 @@ function renderThoughtInlineEditor(data) {
       <div id="inline-edit-wysi" class="wysi-editor inline-edit-wysi"></div>
       <div class="inline-edit-footer">
         <div class="type-toggle">
+          <button class="${data.type==='daynote'?'active':''}" data-act="inline-type" data-type="daynote">${utils.esc(s.emoji_daynote)} 日迹</button>
           <button class="${data.type==='thought'?'active':''}" data-act="inline-type" data-type="thought">${utils.esc(s.emoji_thought)} 想法</button>
           <button class="${data.type==='feeling'?'active':''}" data-act="inline-type" data-type="feeling">${utils.esc(s.emoji_feeling)} 感受</button>
-          <button class="${data.type==='daynote'?'active':''}" data-act="inline-type" data-type="daynote">${utils.esc(s.emoji_daynote)} 日迹</button>
           <button class="${data.type==='note'?'active':''}" data-act="inline-type" data-type="note">${utils.esc(s.emoji_note)} 笔记</button>
+          <button class="${data.type==='excerpt'?'active':''}" data-act="inline-type" data-type="excerpt">${utils.esc(s.emoji_excerpt)} 摘录</button>
         </div>
         <div class="inline-edit-actions">
           <button class="danger-btn" data-act="inline-delete">删除</button>
+          <button class="glass-btn" data-act="inline-fullscreen" title="全屏编辑">${ICONS.expand}</button>
           <button class="glass-btn" data-act="inline-cancel">取消</button>
           <button class="glass-btn primary" data-act="inline-save">保存</button>
         </div>
@@ -748,20 +816,35 @@ function renderTodosList(todos, isDesktop, isMobile=false) {
 
   let html = '';
 
-  // Active todos by priority
+  // Active todos by priority — the first non-empty priority's label row also
+  // hosts the panel + add button (replacing the old "代办" header).
   let hasActive = false;
+  const showPrioEmoji = state.settings.show_priority_emoji !== 'false';
+  let firstPlaced = false;
   [4,3,2,1].forEach(p => {
     if (byPrio[p].length) {
       hasActive = true;
-      const showPrioEmoji = state.settings.show_priority_emoji !== 'false';
+      const addBtn = !firstPlaced ? `<button class="panel-add-btn ${state.addingTodo?'active':''}" data-act="toggle-add-todo" title="${state.addingTodo?'收起':'添加'}" aria-label="${state.addingTodo?'收起':'添加'}">${state.addingTodo?ICONS.close:ICONS.plus}</button>` : '';
+      firstPlaced = true;
       html += `
         <div class="priority-group" data-priority="${p}">
-          <div class="priority-label p${p}">${showPrioEmoji ? utils.esc(state.settings[`emoji_todo_${p}`]) + ' ' : ''}${CFG.PRIO_LABEL[p]}</div>
+          <div class="priority-label-row">
+            <div class="priority-label p${p}">${showPrioEmoji ? utils.esc(state.settings[`emoji_todo_${p}`]) + ' ' : ''}${CFG.PRIO_LABEL[p]}</div>
+            ${addBtn}
+          </div>
           ${byPrio[p].map(t => renderTodoItem(t)).join('')}
         </div>
       `;
     }
   });
+  // If nothing active, still need a place for the add button — show an empty
+  // first row marker so the button is visible.
+  if (!firstPlaced) {
+    html = `<div class="priority-label-row priority-label-row-empty">
+        <div class="priority-label p4">${showPrioEmoji ? utils.esc(state.settings.emoji_todo_4) + ' ' : ''}${CFG.PRIO_LABEL[4]}</div>
+        <button class="panel-add-btn ${state.addingTodo?'active':''}" data-act="toggle-add-todo" title="${state.addingTodo?'收起':'添加'}" aria-label="${state.addingTodo?'收起':'添加'}">${state.addingTodo?ICONS.close:ICONS.plus}</button>
+      </div>` + html;
+  }
 
   if (!hasActive && !completed.length) {
     return `<div class="empty-state"><div class="empty-icon">📋</div>暂无待办事项<br>点右上角 + 添加</div>`;
@@ -888,15 +971,23 @@ function renderAccountingMain() {
 
   // Hide the row currently being edited inline (it's shown in the form instead)
   const ef = state.entryForm;
+  const af = state.acctFilter || 'all';
   const records = mergedRecords().filter(r =>
-    !(ef && ef.id && ef.type === r._kind && r.id == ef.id));
+    !(ef && ef.id && ef.type === r._kind && r.id == ef.id) &&
+    (af === 'all' || (r._kind === 'expense' ? r.cat1 === af : false)));
   const sf = state.specialForm;
   const sitems = items.filter(it => !(sf && sf.id && it.id == sf.id));
 
   const feedCol = `
     <div class="acct-col acct-col-feed">
       <div class="acct-col-head">
-        <span class="panel-head-title">最近消费</span>
+        <select class="panel-filter" data-act="set-acct-filter">
+          <option value="all" ${state.acctFilter==='all'?'selected':''}>⚪ 全部</option>
+          ${Object.keys(expenseCats()).map(c1 => {
+            const ic = (expenseCats()[c1] || {}).icon || '🏷';
+            return `<option value="${utils.esc(c1)}" ${state.acctFilter===c1?'selected':''}>${utils.esc(ic)} ${utils.esc(c1)}</option>`;
+          }).join('')}
+        </select>
         <button class="panel-add-btn ${ef && !ef.id ? 'active' : ''}" data-act="acct-add-expense" title="记一笔" aria-label="记一笔">${ICONS.plus}</button>
       </div>
       <div class="acct-col-scroll">
@@ -1065,10 +1156,10 @@ function renderLedgerRow(r) {
         <div class="ledger-amt pos">+${fmtMoney(r.amount)}</div>
       </div>`;
   }
-  const ic = cat1Icon(r.cat1);
+  const ic = expenseIcon(r.cat1, r.cat2);
   return `
     <div class="ledger-row" data-act="acct-edit-expense" data-id="${r.id}">
-      <div class="ledger-badge" title="${utils.esc(r.cat1 || '其他')}">${utils.esc(ic || '🏷')}</div>
+      <div class="ledger-badge" title="${utils.esc([r.cat1, r.cat2].filter(Boolean).join(' · '))}">${utils.esc(ic || '🏷')}</div>
       <div class="ledger-info">
         <div class="ledger-title">${utils.esc(r.info || r.cat2 || r.cat1 || '消费')}</div>
         <div class="ledger-sub">${utils.esc([r.cat1, r.cat2].filter(Boolean).join(' · '))}</div>
@@ -1271,10 +1362,11 @@ function renderThoughtEditor(showImmersive = true) {
       <div id="thought-wysi" class="wysi-editor"></div>
       <div class="editor-footer">
         <div class="type-toggle">
+          <button class="${state.addType==='daynote'?'active':''}" data-act="set-type" data-type="daynote">${utils.esc(state.settings.emoji_daynote)} 日迹</button>
           <button class="${state.addType==='thought'?'active':''}" data-act="set-type" data-type="thought">${utils.esc(state.settings.emoji_thought)} 想法</button>
           <button class="${state.addType==='feeling'?'active':''}" data-act="set-type" data-type="feeling">${utils.esc(state.settings.emoji_feeling)} 感受</button>
-          <button class="${state.addType==='daynote'?'active':''}" data-act="set-type" data-type="daynote">${utils.esc(state.settings.emoji_daynote)} 日迹</button>
           <button class="${state.addType==='note'?'active':''}" data-act="set-type" data-type="note">${utils.esc(state.settings.emoji_note)} 笔记</button>
+          <button class="${state.addType==='excerpt'?'active':''}" data-act="set-type" data-type="excerpt">${utils.esc(state.settings.emoji_excerpt)} 摘录</button>
         </div>
         <div style="flex:1"></div>
         ${showImmersive ? `<button class="immersive-btn ${state.immersive?'on':''}" data-act="toggle-immersive" title="${immersiveTitle}" aria-label="${immersiveTitle}">${immersiveIcon}</button>` : ''}
@@ -1635,10 +1727,11 @@ function renderTabAppearance() {
 function renderTabInterface() {
   const s = state.settings;
   const emojiSlots = [
+    { key: 'emoji_daynote', label: '日迹' },
     { key: 'emoji_thought', label: '想法' },
     { key: 'emoji_feeling', label: '感受' },
-    { key: 'emoji_daynote', label: '日迹' },
     { key: 'emoji_note', label: '笔记' },
+    { key: 'emoji_excerpt', label: '摘录' },
     { key: 'emoji_todo_4',  label: '紧急' },
     { key: 'emoji_todo_3',  label: '重要' },
     { key: 'emoji_todo_2',  label: '一般' },
@@ -1714,6 +1807,14 @@ function renderTabInterface() {
       <div class="settings-row">
         <div class="settings-row-label">灰化过去的想法和感受</div>
         <button class="toggle-switch ${s.dim_past_thoughts==='true'?'on':''}" data-act="toggle" data-k="dim_past_thoughts"></button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">每条记录显示日期（替代日期分组）</div>
+        <button class="toggle-switch ${s.show_each_date==='true'?'on':''}" data-act="toggle" data-k="show_each_date"></button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">折叠同日期（同一天的记录只显示首条日期）</div>
+        <button class="toggle-switch ${s.collapse_same_date==='true'?'on':''}" data-act="toggle" data-k="collapse_same_date"></button>
       </div>
     </div>
 
@@ -2331,7 +2432,7 @@ async function resetSection(section) {
     interface:  ['show_date','show_time','show_weekday','show_seconds','show_lunar','hour_format',
                  'show_datetime','show_thought_time','show_thought_content','show_priority_emoji',
                  'hide_todo_emoji','dim_past_thoughts','cal_days_per_page','cal_item_click_mode',
-                 'emoji_thought','emoji_feeling','emoji_daynote','emoji_note','emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1'],
+                 'emoji_daynote','emoji_thought','emoji_feeling','emoji_note','emoji_excerpt','emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1'],
   };
   const keys = sectionKeys[section];
   if (!keys) return;
@@ -2353,7 +2454,7 @@ async function restoreAllStyle() {
   if (!confirm('确定要还原所有外观样式吗？数据不会丢失。')) return;
   const updates = {};
   ['theme','font_size','font_weight','font_family','card_size','card_opacity','card_radius','card_aspect','card_aspect_mobile','card_split','card_split_mobile',
-   'ui_style','color_scheme','emoji_thought','emoji_feeling','emoji_daynote','emoji_note',
+   'ui_style','color_scheme','emoji_daynote','emoji_thought','emoji_feeling','emoji_note','emoji_excerpt',
    'emoji_todo_4','emoji_todo_3','emoji_todo_2','emoji_todo_1',
    'active_wp_desktop_light','active_wp_desktop_dark',
    'active_wp_mobile_light','active_wp_mobile_dark'].forEach(k => {
@@ -2466,6 +2567,17 @@ function bindGlobalEvents() {
       case 'exp-save':           await saveEntry(); break;
       case 'exp-delete':         await deleteEntry(); break;
       case 'close-acct-modal':   cancelAcctEntry(); break;
+      // In-form category add (no popups; inline input row)
+      case 'entry-addcat':
+        syncEntryInputs();
+        _entryAdd = { scope: el.dataset.scope, c1: el.dataset.c1 || null };
+        renderAcctEntry();
+        setTimeout(() => document.getElementById('entry-newcat')?.focus(), 0);
+        break;
+      case 'entry-addcat-cancel':
+        _entryAdd = null; renderAcctEntry(); break;
+      case 'entry-addcat-ok':
+        await entryAddCatSave(); break;
       case 'sp-set-kind':
         syncSpecialInputs(); state.specialForm.kind = el.dataset.kind; renderAcctSpecial(); break;
       case 'sp-save':            await saveSpecial(); break;
@@ -2621,6 +2733,15 @@ function bindGlobalEvents() {
       case 'inline-delete':     await deleteInlineEdit(); break;
       case 'inline-complete':   await toggleCompleteInline(true);  break;
       case 'inline-uncomplete': await toggleCompleteInline(false); break;
+      case 'inline-fullscreen': {
+        // Save current inline edits to state.thoughts (server) then open modal
+        const ie = state.inlineEdit;
+        if (ie && ie.kind === 'thought') {
+          await saveInlineEdit();
+          openEditModal('thought', ie.id);
+        }
+        break;
+      }
       case 'inline-prio':
         if (state.inlineEdit) {
           state.inlineEdit.data.priority = parseInt(el.dataset.p, 10);
@@ -2694,6 +2815,13 @@ function bindGlobalEvents() {
 }
 
 function bindViewEvents() {
+  // Type-filter dropdown for the thoughts panel
+  document.querySelectorAll('[data-act="set-thought-filter"]').forEach(sel => {
+    sel.onchange = () => { state.thoughtFilter = sel.value; render(); };
+  });
+  document.querySelectorAll('[data-act="set-acct-filter"]').forEach(sel => {
+    sel.onchange = () => { state.acctFilter = sel.value; render(); };
+  });
   // Keyboard shortcuts in add view
   const ti = document.getElementById('todo-add-input');
   if (ti) {
@@ -2921,13 +3049,21 @@ function ceEmojiGrid(targetKey, label) {
   const data = (window.EMOJI_DATA && window.EMOJI_DATA.length)
     ? window.EMOJI_DATA : [{ name: '', emojis: CFG.EMOJI_PICKER }];
   const tk = utils.esc(targetKey);
+  const q = (_catUI.emojiQuery || '').trim().toLowerCase();
+  const kw = window.EMOJI_KW || {};
+  const matches = q ? (e => (kw[e] || '').toLowerCase().includes(q) || e.includes(q)) : null;
+  const body = matches
+    ? `<div class="ce-emoji-opts">${
+        data.flatMap(c => c.emojis).filter(matches)
+          .map(e => `<button class="ce-emoji-opt" data-act="ce-pick" data-target="${tk}" data-e="${utils.esc(e)}" title="${utils.esc(kw[e]||'')}">${e}</button>`).join('')
+      }</div>`
+    : data.map(cat => `${cat.name ? `<div class="ce-emoji-cat">${utils.esc(cat.name)}</div>` : ''}
+        <div class="ce-emoji-opts">${cat.emojis.map(e => `<button class="ce-emoji-opt" data-act="ce-pick" data-target="${tk}" data-e="${utils.esc(e)}" title="${utils.esc(kw[e]||'')}">${e}</button>`).join('')}</div>`).join('');
   return `<div class="ce-emoji-grid">
     <div class="ce-emoji-label">${utils.esc(label)} 的图标
       <button class="ce-emoji-opt ce-emoji-none" data-act="ce-clear" data-target="${tk}" title="无图标">无</button></div>
-    <div class="ce-emoji-scroll">
-      ${data.map(cat => `${cat.name ? `<div class="ce-emoji-cat">${utils.esc(cat.name)}</div>` : ''}
-        <div class="ce-emoji-opts">${cat.emojis.map(e => `<button class="ce-emoji-opt" data-act="ce-pick" data-target="${tk}" data-e="${utils.esc(e)}">${e}</button>`).join('')}</div>`).join('')}
-    </div>
+    <input type="search" class="ce-emoji-search" id="ce-emoji-search" placeholder="搜索 emoji（中文 / English）" value="${utils.esc(q)}" autocomplete="off">
+    <div class="ce-emoji-scroll">${body || '<div style="padding:10px;font-size:12px;color:var(--text-tertiary)">无匹配</div>'}</div>
   </div>`;
 }
 /* A clickable emoji slot (shows the icon, or a + placeholder when empty). */
@@ -2941,16 +3077,17 @@ function catEditorInner() {
 
   const c1Blocks = Object.keys(cats).map(c1 => {
     const sub = cats[c1].subs || [];
-    return `<div class="ce-c1">
+    return `<div class="ce-c1" draggable="true" data-c1-key="${utils.esc(c1)}">
       <div class="ce-c1-head">
+        <span class="ce-drag-handle" title="拖动排序">⋮⋮</span>
         ${ceSlot('c1:' + c1, cats[c1].icon)}
         <input class="ce-name" data-edit="c1" data-c1="${utils.esc(c1)}" value="${utils.esc(c1)}" spellcheck="false" autocapitalize="off">
         <button class="ce-del" data-act="ce-del-c1" data-c1="${utils.esc(c1)}" title="删除分类">×</button>
       </div>
       ${ceEmojiGrid('c1:' + c1, c1)}
-      <div class="ce-c2-wrap">
+      <div class="ce-c2-wrap" data-c1-parent="${utils.esc(c1)}">
         ${sub.map(s => `
-          <span class="ce-c2">
+          <span class="ce-c2" draggable="true" data-c1-key="${utils.esc(c1)}" data-c2-key="${utils.esc(s.name)}">
             ${ceSlot('c2:' + c1 + ':' + s.name, s.icon)}
             <input class="ce-name ce-name-sm" data-edit="c2" data-c1="${utils.esc(c1)}" data-c2="${utils.esc(s.name)}" value="${utils.esc(s.name)}" spellcheck="false" autocapitalize="off">
             <button class="ce-del" data-act="ce-del-c2" data-c1="${utils.esc(c1)}" data-c2="${utils.esc(s.name)}" title="删除">×</button>
@@ -2980,7 +3117,7 @@ function catEditorInner() {
     : `<button class="glass-btn ce-add-btn" data-act="ce-add-c1">+ 添加一级分类</button>`;
 
   const incChips = incs.map(it => `
-    <span class="ce-c2 ce-inc">
+    <span class="ce-c2 ce-inc" draggable="true" data-inc-key="${utils.esc(it.name)}">
       ${ceSlot('inc:' + it.name, it.icon)}
       <input class="ce-name ce-name-sm" data-edit="inc" data-name="${utils.esc(it.name)}" value="${utils.esc(it.name)}" spellcheck="false" autocapitalize="off">
       <button class="ce-del" data-act="ce-del-inc" data-name="${utils.esc(it.name)}" title="删除">×</button>
@@ -3088,6 +3225,7 @@ function bindCatEditor(host) {
     switch (act) {
       case 'ce-emoji':
         _catUI.emojiFor = _catUI.emojiFor === el.dataset.target ? null : el.dataset.target;
+        _catUI.emojiQuery = '';
         renderCatEditor(); break;
       case 'ce-pick':  await ceSetEmoji(el.dataset.target, el.dataset.e); break;
       case 'ce-clear': await ceSetEmoji(el.dataset.target, ''); break;
@@ -3114,12 +3252,18 @@ function bindCatEditor(host) {
         renderCatEditor(); break;
       }
       case 'ce-del-c1': {
-        const cats = expenseCats(); delete cats[el.dataset.c1];
+        const c1 = el.dataset.c1;
+        const cats = expenseCats();
+        const subN = (cats[c1]?.subs || []).length;
+        if (!confirm(`确定删除一级分类「${c1}」？${subN ? `（连同其下 ${subN} 个二级分类）` : ''}`)) break;
+        delete cats[c1];
         await persistExpenseCats(cats); renderCatEditor(); break;
       }
       case 'ce-del-c2': {
+        const c2 = el.dataset.c2;
+        if (!confirm(`确定删除二级分类「${c2}」？`)) break;
         const cats = expenseCats(), c1 = el.dataset.c1;
-        if (cats[c1]) cats[c1].subs = cats[c1].subs.filter(s => s.name !== el.dataset.c2);
+        if (cats[c1]) cats[c1].subs = cats[c1].subs.filter(s => s.name !== c2);
         await persistExpenseCats(cats); renderCatEditor(); break;
       }
       case 'ce-add-inc':        _catUI.addInc = true; renderCatEditor(); break;
@@ -3133,6 +3277,7 @@ function bindCatEditor(host) {
         renderCatEditor(); break;
       }
       case 'ce-del-inc': {
+        if (!confirm(`确定删除收入分类「${el.dataset.name}」？`)) break;
         const list = incomeCats().filter(x => x.name !== el.dataset.name);
         await persistIncomeCats(list); renderCatEditor(); break;
       }
@@ -3151,6 +3296,81 @@ function bindCatEditor(host) {
   host.addEventListener('change', (e) => {
     const t = e.target;
     if (t.classList.contains('ce-name') && t.dataset.edit) ceRename(t);
+  });
+  // Live emoji search: re-render grid as user types; preserve focus + caret.
+  host.addEventListener('input', (e) => {
+    if (e.target.id !== 'ce-emoji-search') return;
+    _catUI.emojiQuery = e.target.value;
+    const pos = e.target.selectionStart;
+    renderCatEditor();
+    const inp = document.getElementById('ce-emoji-search');
+    if (inp) { inp.focus(); try { inp.setSelectionRange(pos, pos); } catch {} }
+  });
+  // ── Drag-and-drop reorder for cat editor: 一级, 二级 within 一级, 收入 ──
+  let dragged = null;
+  host.addEventListener('dragstart', (e) => {
+    const t = e.target.closest('.ce-c1, .ce-c2[draggable], .ce-inc');
+    if (!t) return;
+    dragged = t;
+    t.classList.add('ce-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  host.addEventListener('dragend', async () => {
+    if (!dragged) return;
+    const wasC1 = dragged.classList.contains('ce-c1');
+    const wasInc = dragged.classList.contains('ce-inc');
+    const c1Parent = !wasC1 && !wasInc ? dragged.dataset.c1Key : null;
+    dragged.classList.remove('ce-dragging');
+    dragged = null;
+    // Read new order from DOM and persist
+    if (wasC1) {
+      const order = [...host.querySelectorAll('.ce-c1[data-c1-key]')].map(el => el.dataset.c1Key);
+      const cats = expenseCats();
+      const next = {}; for (const k of order) if (cats[k]) next[k] = cats[k];
+      // include any keys not in DOM (defensive)
+      for (const k of Object.keys(cats)) if (!(k in next)) next[k] = cats[k];
+      await persistExpenseCats(next);
+    } else if (wasInc) {
+      const order = [...host.querySelectorAll('.ce-inc[data-inc-key]')].map(el => el.dataset.incKey);
+      const list = incomeCats();
+      const byName = new Map(list.map(it => [it.name, it]));
+      const next = order.map(n => byName.get(n)).filter(Boolean);
+      // append any not in DOM
+      for (const it of list) if (!order.includes(it.name)) next.push(it);
+      await persistIncomeCats(next);
+    } else if (c1Parent) {
+      const wrap = host.querySelector(`.ce-c2-wrap[data-c1-parent="${CSS.escape(c1Parent)}"]`);
+      if (!wrap) return;
+      const order = [...wrap.querySelectorAll('.ce-c2[draggable][data-c2-key]')].map(el => el.dataset.c2Key);
+      const cats = expenseCats();
+      if (cats[c1Parent]) {
+        const byName = new Map((cats[c1Parent].subs || []).map(s => [s.name, s]));
+        const next = order.map(n => byName.get(n)).filter(Boolean);
+        for (const s of (cats[c1Parent].subs || [])) if (!order.includes(s.name)) next.push(s);
+        cats[c1Parent].subs = next;
+        await persistExpenseCats(cats);
+      }
+    }
+    renderCatEditor();
+  });
+  host.addEventListener('dragover', (e) => {
+    if (!dragged) return;
+    const t = e.target.closest('.ce-c1, .ce-c2[draggable], .ce-inc');
+    if (!t || t === dragged) return;
+    // Only reorder among same type/parent
+    if (dragged.classList.contains('ce-c1') && !t.classList.contains('ce-c1')) return;
+    if (dragged.classList.contains('ce-inc') && !t.classList.contains('ce-inc')) return;
+    if (dragged.classList.contains('ce-c2') && !dragged.classList.contains('ce-inc')) {
+      if (!t.classList.contains('ce-c2') || t.classList.contains('ce-inc')) return;
+      if (t.dataset.c1Key !== dragged.dataset.c1Key) return;
+    }
+    e.preventDefault();
+    const rect = t.getBoundingClientRect();
+    const horizontal = dragged.classList.contains('ce-c2') || dragged.classList.contains('ce-inc');
+    const after = horizontal
+      ? (e.clientX - rect.left) > rect.width / 2
+      : (e.clientY - rect.top) > rect.height / 2;
+    t.parentNode.insertBefore(dragged, after ? t.nextSibling : t);
   });
 }
 
@@ -4254,17 +4474,18 @@ function renderEditModal() {
     const fullText = data.title ? (data.title + '\n\n' + (data.content || '')) : (data.content || '');
     card.innerHTML = `
       <div class="modal-header">
-        <div class="modal-title">编辑${data.type==='note'?'笔记':data.type==='daynote'?'日迹':data.type==='feeling'?'感受':'想法'}</div>
+        <div class="modal-title">编辑${data.type==='excerpt'?'摘录':data.type==='note'?'笔记':data.type==='daynote'?'日迹':data.type==='feeling'?'感受':'想法'}</div>
         <button class="icon-btn" data-act="close-modal" title="关闭">×</button>
       </div>
       <div class="modal-body">
         <div>
           <div class="modal-field-label">类型</div>
           <div class="type-toggle" style="display:inline-flex">
+            <button class="${data.type==='daynote'?'active':''}" data-act="edit-type" data-type="daynote">${utils.esc(state.settings.emoji_daynote)} 日迹</button>
             <button class="${data.type==='thought'?'active':''}" data-act="edit-type" data-type="thought">${utils.esc(state.settings.emoji_thought)} 想法</button>
             <button class="${data.type==='feeling'?'active':''}" data-act="edit-type" data-type="feeling">${utils.esc(state.settings.emoji_feeling)} 感受</button>
-            <button class="${data.type==='daynote'?'active':''}" data-act="edit-type" data-type="daynote">${utils.esc(state.settings.emoji_daynote)} 日迹</button>
             <button class="${data.type==='note'?'active':''}" data-act="edit-type" data-type="note">${utils.esc(state.settings.emoji_note)} 笔记</button>
+            <button class="${data.type==='excerpt'?'active':''}" data-act="edit-type" data-type="excerpt">${utils.esc(state.settings.emoji_excerpt)} 摘录</button>
           </div>
         </div>
         <div style="flex:1;min-height:240px;display:flex;flex-direction:column">
@@ -4390,21 +4611,29 @@ function acctEntryFormInner() {
   const f = state.entryForm;
   if (!f) return '';
   const isInc = f.type === 'income';
-  const chipLabel = (icon, name) => `${icon ? utils.esc(icon) + ' ' : ''}${utils.esc(name)}`;
 
-  // Build 品类 section: one row per 一级分类 (icon + name, then 二级 chips).
+  // Build 品类 section: one row per 一级分类, with ➕ 二级 at row end and ➕ 一级 at section end.
   let catSection;
   if (isInc) {
     const incs = incomeCats();
+    const addingInc = _entryAdd && _entryAdd.scope === 'inc';
     catSection = `<div class="acct-entry-cats">
-      ${incs.map(c => `
-        <button class="acct-entry-cat1 ${f.category===c.name?'active':''}" data-act="inc-set-cat" data-c="${utils.esc(c.name)}">
-          ${c.icon ? `<span class="acct-entry-cat-ic">${utils.esc(c.icon)}</span>` : ''}<span>${utils.esc(c.name)}</span>
-        </button>`).join('') || '<div class="acct-entry-empty">在设置里添加收入分类</div>'}
+      <div class="acct-entry-catrow">
+        ${incs.map(c => `<button class="acct-entry-cat2 ${f.category===c.name?'active':''}" data-act="inc-set-cat" data-c="${utils.esc(c.name)}">
+          ${c.icon ? `<span class="acct-entry-cat-ic sm">${utils.esc(c.icon)}</span>` : ''}<span>${utils.esc(c.name)}</span>
+        </button>`).join('')}
+        ${addingInc
+          ? `<span class="acct-entry-addchip"><input id="entry-newcat" class="acct-entry-newcat" placeholder="收入分类名" autocomplete="off">
+              <button class="acct-entry-mini ok" data-act="entry-addcat-ok">添加</button>
+              <button class="acct-entry-mini" data-act="entry-addcat-cancel">取消</button></span>`
+          : `<button class="acct-entry-addbtn" data-act="entry-addcat" data-scope="inc">+</button>`}
+      </div>
     </div>`;
   } else {
     const cats = expenseCats();
     const keys = Object.keys(cats);
+    const addingC1 = _entryAdd && _entryAdd.scope === 'c1';
+    const addingC2For = (_entryAdd && _entryAdd.scope === 'c2') ? _entryAdd.c1 : null;
     catSection = `<div class="acct-entry-cats">
       ${keys.map(c1 => {
         const v = cats[c1];
@@ -4417,27 +4646,39 @@ function acctEntryFormInner() {
           ${subs.map(s => `<button class="acct-entry-cat2 ${f.cat1===c1 && f.cat2===s.name ? 'active' : ''}" data-act="exp-set-flatcat" data-c1="${utils.esc(c1)}" data-c2="${utils.esc(s.name)}">
             ${s.icon ? `<span class="acct-entry-cat-ic sm">${utils.esc(s.icon)}</span>` : ''}<span>${utils.esc(s.name)}</span>
           </button>`).join('')}
+          ${addingC2For === c1
+            ? `<span class="acct-entry-addchip"><input id="entry-newcat" class="acct-entry-newcat" placeholder="二级分类名" autocomplete="off">
+                <button class="acct-entry-mini ok" data-act="entry-addcat-ok">添加</button>
+                <button class="acct-entry-mini" data-act="entry-addcat-cancel">取消</button></span>`
+            : `<button class="acct-entry-addbtn" data-act="entry-addcat" data-scope="c2" data-c1="${utils.esc(c1)}" title="添加二级">+</button>`}
         </div>`;
       }).join('') || '<div class="acct-entry-empty">在设置里添加分类</div>'}
+      <div class="acct-entry-catrow acct-entry-catrow-add">
+        ${addingC1
+          ? `<span class="acct-entry-addchip wide"><input id="entry-newcat" class="acct-entry-newcat" placeholder="一级分类名" autocomplete="off">
+              <button class="acct-entry-mini ok" data-act="entry-addcat-ok">添加</button>
+              <button class="acct-entry-mini" data-act="entry-addcat-cancel">取消</button></span>`
+          : `<button class="acct-entry-addbtn wide" data-act="entry-addcat" data-scope="c1">+ 一级分类</button>`}
+      </div>
     </div>`;
   }
 
+  // ± icon-only toggle, defaulting to − (expense).
+  const typeRow = `<div class="acct-entry-typetoggle">
+    <button class="acct-entry-tt ${!isInc?'minus active':'minus'}" data-act="entry-set-type" data-type="expense" title="支出" aria-label="支出">➖</button>
+    <button class="acct-entry-tt ${isInc?'plus active':'plus'}" data-act="entry-set-type" data-type="income" title="收入" aria-label="收入">➕</button>
+  </div>`;
+
   return `
     <div class="acct-inline-form acct-entry-form">
-      <!-- Row 1: 支出/收入 + amount -->
+      <!-- Row 1: ±  +  amount -->
       <div class="acct-entry-topbar">
-        ${!f.id ? `<div class="entry-type-toggle">
-          <button class="${!isInc?'active':''}" data-act="entry-set-type" data-type="expense">支出</button>
-          <button class="${isInc?'active':''}" data-act="entry-set-type" data-type="income">收入</button>
-        </div>` : `<div class="acct-entry-typelabel ${isInc?'pos':''}">${isInc?'收入':'支出'}</div>`}
-        <div class="acct-entry-amt ${isInc?'income':''}">
-          <span class="acct-entry-amt-sym">${isInc?'+':'-'}${currencySym()}</span>
-          <input type="number" inputmode="decimal" step="0.01" id="exp-amount" value="${f.amount}" placeholder="0.00" autocomplete="off">
-        </div>
+        ${typeRow}
+        <input type="number" inputmode="decimal" step="0.01" class="acct-entry-bigamt ${isInc?'pos':'neg'}" id="exp-amount" value="${f.amount}" placeholder="0.00" autocomplete="off">
         <button class="acct-inline-x" data-act="close-acct-modal" title="取消" aria-label="取消">×</button>
       </div>
 
-      <!-- 具体信息 & 日期 -->
+      <!-- 具体信息 & 日期 (above 品类, with visible row separators) -->
       <div class="acct-entry-row">
         <div class="acct-entry-label">具体信息</div>
         <input type="text" class="acct-entry-input" id="exp-info" value="${utils.esc(f.info)}" placeholder="${isInc?'如：六月工资':'如：和朋友吃饭'}" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -4458,6 +4699,9 @@ function acctEntryFormInner() {
       </div>
     </div>`;
 }
+
+/* In-entry-form category-add ephemeral state. */
+let _entryAdd = null;
 
 /* Partial re-render of just the entry host (keeps the ledger/chart intact). */
 function renderAcctEntry() {
@@ -4495,7 +4739,36 @@ async function deleteEntry() {
   render();
 }
 
-function cancelAcctEntry() { state.entryForm = null; render(); }
+function cancelAcctEntry() { state.entryForm = null; _entryAdd = null; render(); }
+
+/* Save a one/二级 cat from the in-form add chip — also persists to settings,
+   then auto-selects the new cat in the form. */
+async function entryAddCatSave() {
+  const inp = document.getElementById('entry-newcat');
+  const name = (inp?.value || '').trim();
+  if (!name) { inp?.focus(); return; }
+  if (!_entryAdd) return;
+  if (_entryAdd.scope === 'c1') {
+    const cats = expenseCats();
+    if (!cats[name]) cats[name] = { icon: '', subs: [] };
+    await persistExpenseCats(cats);
+    state.entryForm.cat1 = name; state.entryForm.cat2 = '';
+  } else if (_entryAdd.scope === 'c2') {
+    const c1 = _entryAdd.c1;
+    const cats = expenseCats();
+    cats[c1] = cats[c1] || { icon: '', subs: [] };
+    if (!cats[c1].subs.some(s => s.name === name)) cats[c1].subs.push({ name, icon: '' });
+    await persistExpenseCats(cats);
+    state.entryForm.cat1 = c1; state.entryForm.cat2 = name;
+  } else if (_entryAdd.scope === 'inc') {
+    const list = incomeCats();
+    if (!list.some(x => x.name === name)) list.push({ name, icon: '' });
+    await persistIncomeCats(list);
+    state.entryForm.category = name;
+  }
+  _entryAdd = null;
+  renderAcctEntry();
+}
 
 // ── Special item inline form ──
 function openSpecialModal(id) {
@@ -4606,6 +4879,14 @@ document.getElementById('edit-modal').addEventListener('click', async (e) => {
     case 'inline-save':       await saveInlineEdit();          break;
     case 'inline-cancel':     closeInlineEdit();               break;
     case 'inline-delete':     await deleteInlineEdit();        break;
+    case 'inline-fullscreen': {
+      const ie = state.inlineEdit;
+      if (ie && ie.kind === 'thought') {
+        await saveInlineEdit();
+        openEditModal('thought', ie.id);
+      }
+      break;
+    }
     case 'inline-complete':   await toggleCompleteInline(true);  break;
     case 'inline-uncomplete': await toggleCompleteInline(false); break;
     case 'inline-prio':

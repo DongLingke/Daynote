@@ -3050,47 +3050,60 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 
 /* ── Redesigned 记一笔 entry form ── */
 .acct-entry-form {
-  border-color: var(--item-border);
+  border: 1px solid var(--item-border);
   background: transparent;
-  padding: 14px;
-  gap: 12px;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
 }
 .acct-entry-topbar {
   display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--divider);
 }
-.acct-entry-topbar .entry-type-toggle { flex-shrink: 0; }
-.acct-entry-typelabel {
-  flex-shrink: 0; padding: 6px 14px; border-radius: 999px;
-  background: var(--item-glass-hover); color: var(--text-secondary);
-  font-size: 0.86rem; font-weight: 500;
+.acct-entry-typetoggle {
+  flex-shrink: 0;
+  display: inline-flex; gap: 4px;
+  padding: 3px;
+  background: var(--item-glass); border-radius: 999px;
+  border: 1px solid var(--item-border);
 }
-.acct-entry-typelabel.pos { color: #30a46c; background: rgba(48,164,108,0.12); }
-.acct-entry-amt {
-  flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 10px; border-radius: 8px;
-  border: 1px solid var(--item-border); background: var(--item-glass);
+.acct-entry-tt {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; cursor: pointer;
+  border-radius: 50%; font-size: 14px;
+  color: var(--text-tertiary);
+  transition: background 0.15s, color 0.15s, transform 0.1s;
 }
-.acct-entry-amt.income { border-color: rgba(48,164,108,0.4); }
-.acct-entry-amt-sym {
-  font-size: 1.1rem; color: var(--text-tertiary); font-variant-numeric: tabular-nums;
+.acct-entry-tt:hover { background: var(--item-glass-hover); }
+.acct-entry-tt:active { transform: scale(0.92); }
+.acct-entry-tt.minus.active {
+  background: var(--danger, #e5484d); color: #fff;
 }
-.acct-entry-amt input {
+.acct-entry-tt.plus.active {
+  background: #30a46c; color: #fff;
+}
+.acct-entry-bigamt {
   flex: 1; min-width: 0;
   border: none; background: transparent; outline: none;
-  font-size: 1.2rem; font-weight: 600; color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 1.4rem; font-weight: 700;
   font-variant-numeric: tabular-nums; text-align: right;
+  color: var(--text-primary); padding: 4px 6px;
 }
+.acct-entry-bigamt.neg { color: var(--danger, #e5484d); }
+.acct-entry-bigamt.pos { color: #30a46c; }
 .acct-entry-form .acct-inline-x { flex-shrink: 0; }
 
 .acct-entry-row {
   display: flex; align-items: center; gap: 12px;
-  padding-bottom: 8px; border-bottom: 1px solid var(--divider);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--divider);
 }
-.acct-entry-row:last-of-type { border-bottom: none; padding-bottom: 0; }
 .acct-entry-label {
   flex-shrink: 0; width: 64px;
-  font-size: 0.82rem; color: var(--text-secondary);
+  font-size: 0.86rem; color: var(--text-secondary);
 }
 .acct-entry-input {
   flex: 1; min-width: 0;
@@ -3102,14 +3115,18 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .acct-entry-input:focus { background: var(--item-glass-hover); text-align: left; }
 .acct-entry-input::-webkit-calendar-picker-indicator { opacity: 0.4; }
 
-/* 品类: one row per 一级, secondary chips inline after */
+/* 品类: 每行一个一级,行间用分隔线区分,清晰美观 */
 .acct-entry-cats {
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 6px 0 2px;
+  display: flex; flex-direction: column; gap: 0;
+  padding: 0;
 }
 .acct-entry-catrow {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--divider);
 }
+.acct-entry-catrow:last-child { border-bottom: none; }
+.acct-entry-catrow-add { background: transparent; }
 .acct-entry-cat1, .acct-entry-cat2 {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 5px 10px; border-radius: 999px;
@@ -3127,8 +3144,35 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .acct-entry-cat-ic { font-size: 0.96rem; line-height: 1; }
 .acct-entry-cat-ic.sm { font-size: 0.86rem; }
 .acct-entry-empty {
-  font-size: 0.78rem; color: var(--text-tertiary); padding: 6px 4px;
+  font-size: 0.78rem; color: var(--text-tertiary); padding: 8px 14px;
 }
+.acct-entry-addbtn {
+  border: 1px dashed var(--item-border); background: transparent;
+  color: var(--text-tertiary); cursor: pointer;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 0.78rem;
+}
+.acct-entry-addbtn:hover { color: var(--accent); border-color: var(--accent); }
+.acct-entry-addbtn.wide { width: 100%; padding: 6px; }
+.acct-entry-addchip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 6px; border-radius: 999px;
+  border: 1px solid var(--accent); background: var(--item-glass);
+}
+.acct-entry-addchip.wide { flex: 1; }
+.acct-entry-newcat {
+  border: none; background: transparent; outline: none;
+  font-family: var(--font-family); font-size: 0.82rem; color: var(--text-primary);
+  padding: 4px 4px; min-width: 80px;
+}
+.acct-entry-mini {
+  border: none; cursor: pointer; border-radius: 6px;
+  font-size: 0.72rem; padding: 4px 8px;
+  background: var(--item-glass-hover); color: var(--text-secondary);
+}
+.acct-entry-mini.ok { background: var(--accent); color: #fff; }
+
+.acct-inline-actions { padding: 10px 14px; }
 
 .ledger-day { margin-bottom: 10px; }
 .ledger-day-head {
@@ -3147,11 +3191,11 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .ledger-row:hover { background: var(--item-glass); }
 .ledger-badge {
   flex-shrink: 0;
-  width: 30px; height: 30px;
+  width: 40px; height: 40px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
   background: var(--accent-dim, var(--item-glass));
-  font-size: 1.05rem; line-height: 1;
+  font-size: 1.4rem; line-height: 1;
 }
 .ledger-badge.income { background: rgba(48,164,108,0.16); }
 .ledger-info { flex: 1; min-width: 0; }
@@ -3297,6 +3341,68 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
   font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 6px;
 }
 .ce-emoji-scroll { max-height: 220px; overflow-y: auto; }
+.ce-emoji-search {
+  width: 100%; box-sizing: border-box;
+  font-family: var(--font-family); font-size: 0.82rem;
+  padding: 6px 10px; margin-bottom: 6px;
+  border: 1px solid var(--item-border); border-radius: 6px;
+  background: var(--item-glass); color: var(--text-primary); outline: none;
+}
+.ce-emoji-search:focus { border-color: var(--accent); }
+
+.ce-drag-handle {
+  flex-shrink: 0; cursor: grab; color: var(--text-tertiary);
+  user-select: none; font-size: 0.7rem; padding: 0 2px;
+  letter-spacing: -2px;
+}
+.ce-drag-handle:active { cursor: grabbing; }
+.ce-c1[draggable], .ce-c2[draggable] { cursor: move; }
+.ce-dragging { opacity: 0.45; }
+
+/* ── Panel head: type-filter dropdown ── */
+.panel-filter {
+  appearance: none; -webkit-appearance: none;
+  border: 1px solid var(--item-border);
+  background: var(--item-glass);
+  color: var(--text-primary);
+  font-family: var(--font-family); font-size: 0.78rem;
+  padding: 4px 22px 4px 10px; border-radius: 999px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-tertiary) 50%),
+                    linear-gradient(135deg, var(--text-tertiary) 50%, transparent 50%);
+  background-position: calc(100% - 12px) 50%, calc(100% - 8px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+.panel-filter:focus { outline: none; border-color: var(--accent); }
+.panel-filter:hover { background-color: var(--item-glass-hover); }
+
+/* ── Priority label row (now hosts the add button) ── */
+.priority-label-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 6px 0 4px;
+}
+.priority-label-row-empty { margin-top: 0; }
+.priority-label-row .priority-label { margin: 0; }
+.todos-panel-noheader .panel-scroll { padding-top: 6px; }
+
+/* ── Per-row date display for thoughts ── */
+.thought-flat-row { display: flex; align-items: stretch; gap: 8px; margin-bottom: 4px; }
+.thought-date-col {
+  flex-shrink: 0; width: 56px;
+  display: flex; flex-direction: column; align-items: center;
+  padding-top: 8px;
+}
+.thought-date-text {
+  font-size: 0.72rem; font-weight: 600; color: var(--text-tertiary);
+  line-height: 1.2; text-align: center;
+}
+.thought-date-bar {
+  width: 2px; flex: 1;
+  background: var(--item-border); border-radius: 2px;
+  margin-top: 4px;
+}
+.thought-flat-item { flex: 1; min-width: 0; }
 .ce-emoji-cat {
   font-size: 0.66rem; color: var(--text-tertiary); font-weight: 600;
   padding: 6px 2px 3px; position: sticky; top: 0;
