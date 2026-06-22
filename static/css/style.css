@@ -2994,19 +2994,19 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 .special-row {
   display: flex; align-items: center; gap: 10px;
   padding: 8px; border-radius: var(--radius-item, 10px);
-  transition: background 0.12s, opacity 0.12s;
+  transition: background 0.12s, opacity 0.12s, transform 0.12s;
 }
 .special-row:hover { background: var(--item-glass); }
-.special-row.off { opacity: 0.45; }
-.special-check {
-  flex-shrink: 0; width: 20px; height: 20px;
+.special-row.dragging { opacity: 0.45; }
+.special-drag {
+  flex-shrink: 0; width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
-  padding: 0; border-radius: 6px; border: 1.5px solid var(--item-border);
-  background: transparent; color: #fff; cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  color: var(--text-tertiary); cursor: grab;
+  border-radius: 6px;
 }
-.special-check.on { background: var(--accent); border-color: var(--accent); }
-.special-check svg { width: 13px; height: 13px; }
+.special-drag:hover { background: var(--item-glass-hover); color: var(--text-secondary); }
+.special-drag:active { cursor: grabbing; }
+.special-drag svg { display: block; }
 .special-row-body { flex: 1; min-width: 0; cursor: pointer; }
 .special-row-name {
   font-size: 0.88rem; color: var(--text-primary);
@@ -3048,6 +3048,88 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 }
 .acct-entry-host-cal .acct-inline-form { margin-bottom: 0; }
 
+/* ── Redesigned 记一笔 entry form ── */
+.acct-entry-form {
+  border-color: var(--item-border);
+  background: transparent;
+  padding: 14px;
+  gap: 12px;
+}
+.acct-entry-topbar {
+  display: flex; align-items: center; gap: 10px;
+}
+.acct-entry-topbar .entry-type-toggle { flex-shrink: 0; }
+.acct-entry-typelabel {
+  flex-shrink: 0; padding: 6px 14px; border-radius: 999px;
+  background: var(--item-glass-hover); color: var(--text-secondary);
+  font-size: 0.86rem; font-weight: 500;
+}
+.acct-entry-typelabel.pos { color: #30a46c; background: rgba(48,164,108,0.12); }
+.acct-entry-amt {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 8px;
+  border: 1px solid var(--item-border); background: var(--item-glass);
+}
+.acct-entry-amt.income { border-color: rgba(48,164,108,0.4); }
+.acct-entry-amt-sym {
+  font-size: 1.1rem; color: var(--text-tertiary); font-variant-numeric: tabular-nums;
+}
+.acct-entry-amt input {
+  flex: 1; min-width: 0;
+  border: none; background: transparent; outline: none;
+  font-size: 1.2rem; font-weight: 600; color: var(--text-primary);
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.acct-entry-form .acct-inline-x { flex-shrink: 0; }
+
+.acct-entry-row {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--divider);
+}
+.acct-entry-row:last-of-type { border-bottom: none; padding-bottom: 0; }
+.acct-entry-label {
+  flex-shrink: 0; width: 64px;
+  font-size: 0.82rem; color: var(--text-secondary);
+}
+.acct-entry-input {
+  flex: 1; min-width: 0;
+  border: none; background: transparent; outline: none;
+  font-family: var(--font-family);
+  font-size: 0.92rem; color: var(--text-primary);
+  padding: 4px 6px; border-radius: 6px; text-align: right;
+}
+.acct-entry-input:focus { background: var(--item-glass-hover); text-align: left; }
+.acct-entry-input::-webkit-calendar-picker-indicator { opacity: 0.4; }
+
+/* 品类: one row per 一级, secondary chips inline after */
+.acct-entry-cats {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 6px 0 2px;
+}
+.acct-entry-catrow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.acct-entry-cat1, .acct-entry-cat2 {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--item-border); background: var(--item-glass);
+  color: var(--text-secondary); cursor: pointer;
+  font-size: 0.82rem;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.acct-entry-cat1 { font-weight: 600; min-width: 76px; justify-content: flex-start; }
+.acct-entry-cat2 { font-size: 0.78rem; font-weight: 400; }
+.acct-entry-cat1:hover, .acct-entry-cat2:hover { background: var(--item-glass-hover); color: var(--text-primary); }
+.acct-entry-cat1.active, .acct-entry-cat2.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.acct-entry-cat-ic { font-size: 0.96rem; line-height: 1; }
+.acct-entry-cat-ic.sm { font-size: 0.86rem; }
+.acct-entry-empty {
+  font-size: 0.78rem; color: var(--text-tertiary); padding: 6px 4px;
+}
+
 .ledger-day { margin-bottom: 10px; }
 .ledger-day-head {
   display: flex; justify-content: space-between; align-items: baseline;
@@ -3064,11 +3146,14 @@ body.drag-active .todo-item:not(.dragging) { transition: transform 0.15s; }
 }
 .ledger-row:hover { background: var(--item-glass); }
 .ledger-badge {
-  flex-shrink: 0; min-width: 40px; padding: 4px 8px;
-  border-radius: 8px; background: var(--accent-dim, var(--item-glass));
-  color: var(--accent); font-size: 0.72rem; font-weight: 600; text-align: center;
+  flex-shrink: 0;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-dim, var(--item-glass));
+  font-size: 1.05rem; line-height: 1;
 }
-.ledger-badge.income { background: rgba(48,164,108,0.14); color: #30a46c; }
+.ledger-badge.income { background: rgba(48,164,108,0.16); }
 .ledger-info { flex: 1; min-width: 0; }
 .ledger-title {
   font-size: 0.9rem; color: var(--text-primary);

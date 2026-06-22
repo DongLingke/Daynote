@@ -155,6 +155,7 @@ const LUCIDE_PATHS = {
   'rotate-ccw':   '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   'book':         '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/>',
   'wallet':       '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 1-1 1v-2"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  'list':         '<line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/>',
 };
 const lucide = (name, size = 16, sw = 2) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LUCIDE_PATHS[name]}</svg>`;
@@ -175,6 +176,7 @@ const ICONS = {
   plus:     lucide('plus',         18, 2.1),
   book:     lucide('book',         16, 1.9),
   wallet:   lucide('wallet',       16, 1.9),
+  list:     lucide('list',         14, 1.8),
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -594,6 +596,7 @@ function render() {
 
   bindGlobalEvents();
   bindViewEvents();
+  if (state.appMode === 'accounting' && state.view === 'main') bindSpecialDrag();
 }
 
 function renderViewBody() {
@@ -979,15 +982,48 @@ function flatCats() {
 function renderSpecialRow(it) {
   const debt = it.kind === 'debt';
   return `
-    <div class="special-row ${it.checked ? '' : 'off'}" data-special-id="${it.id}">
-      <button class="special-check ${it.checked ? 'on' : ''}" data-act="acct-toggle-special" data-id="${it.id}"
-              title="计入余额" aria-label="计入余额">${it.checked ? ICONS.check : ''}</button>
+    <div class="special-row" draggable="true" data-special-id="${it.id}">
+      <span class="special-drag" title="拖动排序" aria-hidden="true">${ICONS.list}</span>
       <div class="special-row-body" data-act="acct-edit-special" data-id="${it.id}">
         <div class="special-row-name">${utils.esc(it.name || '未命名')}</div>
         <div class="special-row-kind ${debt ? 'debt' : 'asset'}">${debt ? '负债' : '资产'}</div>
       </div>
       <div class="special-row-amt ${debt ? 'debt' : 'asset'}">${debt ? '-' : ''}${fmtMoney(it.amount)}</div>
     </div>`;
+}
+
+/* Drag-and-drop reorder for the 特殊款项 list. Persists order_index via the
+   existing PUT route. Bound by render() after each view-redraw. */
+function bindSpecialDrag() {
+  const rows = document.querySelectorAll('.acct-col-special .special-row[draggable]');
+  if (!rows.length) return;
+  let dragged = null;
+  rows.forEach(row => {
+    row.addEventListener('dragstart', () => {
+      dragged = row;
+      row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', async () => {
+      row.classList.remove('dragging');
+      dragged = null;
+      // Persist new order based on final DOM order
+      const ids = [...document.querySelectorAll('.acct-col-special .special-row[draggable]')]
+        .map(el => parseInt(el.dataset.specialId, 10));
+      // Optimistic local reorder
+      const byId = new Map(state.accounting.specialItems.map(it => [it.id, it]));
+      state.accounting.specialItems = ids.map((id, i) => ({ ...byId.get(id), order_index: i }));
+      try {
+        await Promise.all(ids.map((id, i) => api.put(`/special-items/${id}`, { order_index: i })));
+      } catch (e) { console.warn('reorder save failed', e); }
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!dragged || dragged === row) return;
+      const rect = row.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height / 2;
+      row.parentNode.insertBefore(dragged, after ? row.nextSibling : row);
+    });
+  });
 }
 
 /* Merge expenses + incomes into one ledger, newest first. */
@@ -1021,7 +1057,7 @@ function renderLedgerRow(r) {
     const ic = incIcon(r.category);
     return `
       <div class="ledger-row" data-act="acct-edit-income" data-id="${r.id}">
-        <div class="ledger-badge income">${ic ? utils.esc(ic) + ' ' : ''}${utils.esc(r.category || '收入')}</div>
+        <div class="ledger-badge income" title="${utils.esc(r.category || '收入')}">${utils.esc(ic || '💰')}</div>
         <div class="ledger-info">
           <div class="ledger-title">${utils.esc(r.info || r.category || '收入')}</div>
           <div class="ledger-sub">收入</div>
@@ -1032,7 +1068,7 @@ function renderLedgerRow(r) {
   const ic = cat1Icon(r.cat1);
   return `
     <div class="ledger-row" data-act="acct-edit-expense" data-id="${r.id}">
-      <div class="ledger-badge">${ic ? utils.esc(ic) + ' ' : ''}${utils.esc(r.cat1 || '其他')}</div>
+      <div class="ledger-badge" title="${utils.esc(r.cat1 || '其他')}">${utils.esc(ic || '🏷')}</div>
       <div class="ledger-info">
         <div class="ledger-title">${utils.esc(r.info || r.cat2 || r.cat1 || '消费')}</div>
         <div class="ledger-sub">${utils.esc([r.cat1, r.cat2].filter(Boolean).join(' · '))}</div>
@@ -4356,37 +4392,70 @@ function acctEntryFormInner() {
   const isInc = f.type === 'income';
   const chipLabel = (icon, name) => `${icon ? utils.esc(icon) + ' ' : ''}${utils.esc(name)}`;
 
+  // Build 品类 section: one row per 一级分类 (icon + name, then 二级 chips).
   let catSection;
   if (isInc) {
     const incs = incomeCats();
-    catSection = `<div class="acct-inline-field"><div class="modal-field-label">收入分类</div>
-      <div class="cat-chip-row">${incs.map(c => `<button class="cat-chip ${f.category===c.name?'active':''}" data-act="inc-set-cat" data-c="${utils.esc(c.name)}">${chipLabel(c.icon, c.name)}</button>`).join('') || '<span style="font-size:12px;color:var(--text-tertiary)">在设置里添加收入分类</span>'}</div></div>`;
+    catSection = `<div class="acct-entry-cats">
+      ${incs.map(c => `
+        <button class="acct-entry-cat1 ${f.category===c.name?'active':''}" data-act="inc-set-cat" data-c="${utils.esc(c.name)}">
+          ${c.icon ? `<span class="acct-entry-cat-ic">${utils.esc(c.icon)}</span>` : ''}<span>${utils.esc(c.name)}</span>
+        </button>`).join('') || '<div class="acct-entry-empty">在设置里添加收入分类</div>'}
+    </div>`;
   } else {
-    const flats = flatCats();
-    catSection = `<div class="acct-inline-field"><div class="modal-field-label">品类</div>
-      <div class="cat-chip-row">${flats.map(fc => `<button class="cat-chip ${f.cat1===fc.cat1 && f.cat2===fc.cat2 ? 'active' : ''}" data-act="exp-set-flatcat" data-c1="${utils.esc(fc.cat1)}" data-c2="${utils.esc(fc.cat2)}">${chipLabel(fc.icon, fc.label)}</button>`).join('') || '<span style="font-size:12px;color:var(--text-tertiary)">在设置里添加分类</span>'}</div></div>`;
+    const cats = expenseCats();
+    const keys = Object.keys(cats);
+    catSection = `<div class="acct-entry-cats">
+      ${keys.map(c1 => {
+        const v = cats[c1];
+        const subs = v.subs || [];
+        const c1Active = f.cat1 === c1 && !f.cat2;
+        return `<div class="acct-entry-catrow">
+          <button class="acct-entry-cat1 ${c1Active ? 'active' : ''}" data-act="exp-set-flatcat" data-c1="${utils.esc(c1)}" data-c2="">
+            ${v.icon ? `<span class="acct-entry-cat-ic">${utils.esc(v.icon)}</span>` : ''}<span>${utils.esc(c1)}</span>
+          </button>
+          ${subs.map(s => `<button class="acct-entry-cat2 ${f.cat1===c1 && f.cat2===s.name ? 'active' : ''}" data-act="exp-set-flatcat" data-c1="${utils.esc(c1)}" data-c2="${utils.esc(s.name)}">
+            ${s.icon ? `<span class="acct-entry-cat-ic sm">${utils.esc(s.icon)}</span>` : ''}<span>${utils.esc(s.name)}</span>
+          </button>`).join('')}
+        </div>`;
+      }).join('') || '<div class="acct-entry-empty">在设置里添加分类</div>'}
+    </div>`;
   }
 
   return `
-    <div class="acct-inline-form">
-      <div class="acct-inline-head"><span>${f.id ? '编辑' : '记一笔'}</span>
-        <button class="acct-inline-x" data-act="close-acct-modal" title="取消" aria-label="取消">×</button></div>
-      ${!f.id ? `<div class="entry-type-toggle">
-        <button class="${!isInc?'active':''}" data-act="entry-set-type" data-type="expense">支出</button>
-        <button class="${isInc?'active':''}" data-act="entry-set-type" data-type="income">收入</button></div>` : ''}
-      <div class="exp-amount-wrap ${isInc?'income':''}">
-        <span class="exp-amount-sym">${isInc?'+':'-'}${currencySym()}</span>
-        <input type="number" inputmode="decimal" step="0.01" class="exp-amount-input" id="exp-amount" value="${f.amount}" placeholder="0.00" autocomplete="off"></div>
+    <div class="acct-inline-form acct-entry-form">
+      <!-- Row 1: 支出/收入 + amount -->
+      <div class="acct-entry-topbar">
+        ${!f.id ? `<div class="entry-type-toggle">
+          <button class="${!isInc?'active':''}" data-act="entry-set-type" data-type="expense">支出</button>
+          <button class="${isInc?'active':''}" data-act="entry-set-type" data-type="income">收入</button>
+        </div>` : `<div class="acct-entry-typelabel ${isInc?'pos':''}">${isInc?'收入':'支出'}</div>`}
+        <div class="acct-entry-amt ${isInc?'income':''}">
+          <span class="acct-entry-amt-sym">${isInc?'+':'-'}${currencySym()}</span>
+          <input type="number" inputmode="decimal" step="0.01" id="exp-amount" value="${f.amount}" placeholder="0.00" autocomplete="off">
+        </div>
+        <button class="acct-inline-x" data-act="close-acct-modal" title="取消" aria-label="取消">×</button>
+      </div>
+
+      <!-- 具体信息 & 日期 -->
+      <div class="acct-entry-row">
+        <div class="acct-entry-label">具体信息</div>
+        <input type="text" class="acct-entry-input" id="exp-info" value="${utils.esc(f.info)}" placeholder="${isInc?'如：六月工资':'如：和朋友吃饭'}" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div class="acct-entry-row">
+        <div class="acct-entry-label">日期</div>
+        <input type="date" class="acct-entry-input" id="exp-date" value="${f.date}">
+      </div>
+
+      <!-- 品类 -->
       ${catSection}
-      <div class="acct-inline-field"><div class="modal-field-label">具体信息</div>
-        <input type="text" class="modal-input" id="exp-info" value="${utils.esc(f.info)}" placeholder="${isInc?'如：六月工资':'如：和朋友吃饭'}" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
-      <div class="acct-inline-field"><div class="modal-field-label">日期</div>
-        <input type="date" class="modal-input" id="exp-date" value="${f.date}"></div>
+
       <div class="acct-inline-actions">
         ${f.id ? `<button class="danger-btn" data-act="exp-delete">删除</button>` : ''}
         <div style="flex:1"></div>
         <button class="glass-btn" data-act="close-acct-modal">取消</button>
-        <button class="glass-btn primary" data-act="exp-save">保存</button></div>
+        <button class="glass-btn primary" data-act="exp-save">保存</button>
+      </div>
     </div>`;
 }
 
